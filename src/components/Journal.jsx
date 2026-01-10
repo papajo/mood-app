@@ -16,7 +16,8 @@ const Journal = () => {
 
         setLoading(true);
         const url = `${API_URL}/api/journal/${user.id}`;
-        const fetchPromise = (typeof fetch === 'function') ? fetch(url) : Promise.resolve({ ok: true, json: async () => [] });
+        const result = (typeof fetch === 'function') ? fetch(url) : Promise.resolve({ ok: true, json: async () => [] });
+        const fetchPromise = (result && typeof result.then === 'function') ? result : Promise.resolve({ ok: true, json: async () => [] });
         fetchPromise
             .then(res => {
                 if (!res.ok) throw new Error('Failed to fetch journal entries');
