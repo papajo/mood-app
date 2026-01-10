@@ -129,4 +129,38 @@ describe('VibeRoom', () => {
       expect(screen.getByText('OtherUser')).toBeInTheDocument();
     });
   });
+  it('prevents sending empty messages', async () => {
+    const mockMood = { id: 'happy', label: 'Happy', emoji: '😊' };
+    render(<VibeRoom currentMood={mockMood} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
+    const sendBtn = screen.getByRole('button', { name: '' });
+    fireEvent.click(sendBtn);
+
+    // Should not emit send_message
+    expect(mockSocket.emit).not.toHaveBeenCalledWith('send_message', expect.anything());
+  });
+
+  it('prevents sending messages over character limit', async () => {
+    const mockMood = { id: 'happy', label: 'Happy', emoji: '😊' };
+    render(<VibeRoom currentMood={mockMood} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText(/Message #Happy/);
+    const longMessage = 'a'.repeat(501);
+    fireEvent.change(input, { target: { value: longMessage } });
+
+    const sendBtn = screen.getByRole('button', { name: '' });
+    fireEvent.click(sendBtn);
+
+    // Might show error or just not send
+    expect(mockSocket.emit).not.toHaveBeenCalledWith('send_message', expect.anything());
+    // Ideally check for error toast if UI supports it
+  });
 });

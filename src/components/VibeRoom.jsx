@@ -50,11 +50,11 @@ const VibeRoom = ({ currentMood }) => {
                         fetch(`${API_URL}/api/users/${msg.userId}`)
                             .then(res => res.json())
                             .then(userData => {
-                                setMessages(prev => prev.map(m => 
+                                setMessages(prev => prev.map(m =>
                                     m.id === msg.id ? { ...m, avatar: userData.avatar } : m
                                 ));
                             })
-                            .catch(() => {});
+                            .catch(() => { });
                     }
                     return msg;
                 });
@@ -128,9 +128,9 @@ const VibeRoom = ({ currentMood }) => {
 
     const handleInputChange = (e) => {
         setInputText(e.target.value);
-        
+
         if (!socketRef.current || !currentMood || !user) return;
-        
+
         // Emit typing indicator
         if (e.target.value.trim()) {
             socketRef.current.emit('typing_start', {
@@ -166,6 +166,11 @@ const VibeRoom = ({ currentMood }) => {
     const handleSend = (e) => {
         e.preventDefault();
         if (!inputText.trim() || !user || !socketRef.current) return;
+
+        if (inputText.length > 500) {
+            // Ideally show a toast error, but for now we safeguard
+            return;
+        }
 
         // Stop typing indicator
         if (typingTimeoutRef.current) {
@@ -243,9 +248,9 @@ const VibeRoom = ({ currentMood }) => {
                                         {!isMe && (
                                             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
                                                 {msg.avatar ? (
-                                                    <img 
-                                                        src={msg.avatar} 
-                                                        alt={msg.user} 
+                                                    <img
+                                                        src={msg.avatar}
+                                                        alt={msg.user}
                                                         className="w-full h-full object-cover"
                                                     />
                                                 ) : (
@@ -255,8 +260,8 @@ const VibeRoom = ({ currentMood }) => {
                                         )}
                                         <div
                                             className={`max-w-[80%] p-3 rounded-2xl ${isMe
-                                                    ? 'bg-primary text-white rounded-tr-sm'
-                                                    : 'bg-white/10 text-gray-200 rounded-tl-sm'
+                                                ? 'bg-primary text-white rounded-tr-sm'
+                                                : 'bg-white/10 text-gray-200 rounded-tl-sm'
                                                 }`}
                                         >
                                             {!isMe && <p className="text-xs text-primary mb-1 font-medium">{msg.user}</p>}

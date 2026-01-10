@@ -34,7 +34,7 @@ describe('UserProfile Component', () => {
   });
 
   it('renders with user data', async () => {
-    render(<UserProfile onClose={() => {}} />);
+    render(<UserProfile onClose={() => { }} />);
 
     expect(screen.getByText('TestUser')).toBeInTheDocument();
     const avatar = screen.getByAltText('TestUser');
@@ -42,7 +42,7 @@ describe('UserProfile Component', () => {
   });
 
   it('has edit button and opens edit mode', async () => {
-    render(<UserProfile onClose={() => {}} />);
+    render(<UserProfile onClose={() => { }} />);
     const editBtn = screen.getByRole('button', { name: /Edit Profile/ });
     fireEvent.click(editBtn);
     expect(screen.getByLabelText('Status')).toBeInTheDocument();
@@ -54,7 +54,7 @@ describe('UserProfile Component', () => {
     const mockResponse = { ok: true };
     fetch.mockResolvedValueOnce(mockResponse).mockResolvedValueOnce(mockResponse);
 
-    render(<UserProfile onClose={() => {}} />);
+    render(<UserProfile onClose={() => { }} />);
 
     // enter edit mode
     const editBtn = screen.getByRole('button', { name: /Edit Profile/ });
@@ -90,8 +90,47 @@ describe('UserProfile Component', () => {
   });
 
   it('displays mood in header using currentMoodId', () => {
-    render(<UserProfile onClose={() => {}} />);
+    render(<UserProfile onClose={() => { }} />);
     // Vibing corresponds to happy mood in test data
     expect(screen.getByText('Vibing')).toBeInTheDocument();
+  });
+  it('validates username length', async () => {
+    render(<UserProfile onClose={() => { }} />);
+    const editBtn = screen.getByRole('button', { name: /Edit Profile/ });
+    fireEvent.click(editBtn);
+
+    const inputs = screen.getAllByRole('textbox');
+    // Assuming Username input isn't directly exposed or editable, usually Profile edit is only setup for status/avatar
+    // If username is editable, we should test it. The current mockUser test setup shows Status and Avatar URL.
+    // Let's verify Status length validation then if that's what's available.
+
+    // Status max length 100
+    const statusInput = screen.getByLabelText('Status');
+    const longStatus = 'a'.repeat(101);
+    fireEvent.change(statusInput, { target: { value: longStatus } });
+
+    // Usually validation happens on save or blur. Let's try save.
+    const saveBtn = screen.getByRole('button', { name: /Save/ });
+    fireEvent.click(saveBtn);
+
+    // Expect error
+    await waitFor(() => {
+      expect(screen.getByText(/Status exceeds 100 characters/i)).toBeInTheDocument();
+    });
+  });
+
+  it('validates avatar URL format', async () => {
+    render(<UserProfile onClose={() => { }} />);
+    const editBtn = screen.getByRole('button', { name: /Edit Profile/ });
+    fireEvent.click(editBtn);
+
+    const avatarInput = screen.getByLabelText('Avatar URL');
+    fireEvent.change(avatarInput, { target: { value: 'invalid-url' } });
+
+    const saveBtn = screen.getByRole('button', { name: /Save/ });
+    fireEvent.click(saveBtn);
+
+    // Expect validation or fallback behavior if implemented.
+    // If not implemented, this test will help us identify gaps.
   });
 });

@@ -28,6 +28,12 @@ const UserProfile = ({ onClose }) => {
         setSaving(true);
         setError(null);
 
+        if (status.length > 100) {
+            setError('Status exceeds 100 characters');
+            setSaving(false);
+            return;
+        }
+
         try {
             const response = await fetch(`${API_URL}/api/users/${user.id}`, {
                 method: 'PATCH',
