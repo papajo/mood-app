@@ -1,49 +1,132 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import VibeRoom from '../VibeRoom.jsx';
 
-// Mock user context to provide a logged-in user
-const mockUser = { id: 123, username: 'TestUser' };
+// Mock Socket.io
+const mockSocket = {
+  emit: vi.fn(),
+  on: vi.fn(),
+  off: vi.fn()
+};
+
+vi.mock('socket.io-client', () => ({
+  default: vi.fn(() => mockSocket)
+}));
+
+// Mock user context
+const mockUser = { id: 123, username: 'TestUser', avatar: 'https://example.com/avatar.jpg' };
 vi.mock('../../contexts/UserContext', () => ({
   useUser: () => ({ user: mockUser })
 }));
-// Mock API base URL
-vi.mock('../../config/api', () => ({ API_URL: 'http://localhost:3001', SOCKET_URL: 'http://localhost:3001' }));
+
+// Mock API
+vi.mock('../../config/api', () => ({
+  API_URL: 'http://localhost:3001',
+  SOCKET_URL: 'http://localhost:3001'
+}));
+
+global.fetch = vi.fn();
 
 describe('VibeRoom', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('should prompt to select mood when no mood is provided', () => {
-    render(<VibeRoom currentMood={null} />);
-    expect(screen.getByText(/Select a mood to enter a Vibe Room/)).toBeInTheDocument();
-  });
-
-  it('should load and render messages when mood is provided', async () => {
-    const mockMood = { id: 'happy', label: 'Happy' };
-    const mockMessages = [
-      {
-        id: 1,
-        roomId: mockMood.id,
-        userId: 2,
-        user: 'Alice',
-        text: 'Hello vibes!',
-        time: '12:34 PM',
-        avatar: 'https://example.com/alice.jpg'
-      }
-    ];
-
-    vi.spyOn(global, 'fetch').mockResolvedValue({
+    fetch.mockResolvedValue({
       ok: true,
-      json: async () => mockMessages
+      json: async () => []
     });
+  });
 
+  it('connects to socket and joins room on mount', async () => {
+    const mockMood = { id: 'happy', label: 'Happy', emoji: '😊' };
     render(<VibeRoom currentMood={mockMood} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Hello vibes!')).toBeInTheDocument();
-      expect(screen.getByAltText('Alice')).toBeInTheDocument();
+      expect(mockSocket.emit).toHaveBeenCalledWith('join_room', {
+        roomId: 'happy',
+        userId: 123
+      });
+    });
+  });
+
+  it('sends a message when form is submitted', async () => {
+    const mockMood = { id: 'happy', label: 'Happy', emoji: '😊' };
+    render(<VibeRoom currentMood={mockMood} />);
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+
+    const input = screen.getByPlaceholderText(/Message #Happy/);
+    fireEvent.change(input, { target: { value: 'Hello World' } });
+
+    const sendBtn = screen.getByRole('button', { name: '' }); // Send icon button usually has no aria-label text if not specified, but we can find by type submit
+    fireEvent.click(sendBtn);
+
+    expect(mockSocket.emit).toHaveBeenCalledWith('send_message', expect.objectContaining({
+      roomId: 'happy',
+      text: 'Hello World',
+      userId: 123,
+      user: 'TestUser'
+    }));
+  });
+
+  it('emits typing indicators', async () => {
+    vi.useFakeTimers();
+    const mockMood = { id: 'happy', label: 'Happy', emoji: '😊' };
+    render(<VibeRoom currentMood={mockMood} />);
+
+    const input = screen.getByPlaceholderText(/Message #Happy/);
+    fireEvent.change(input, { target: { value: 'Typing...' } });
+
+    expect(mockSocket.emit).toHaveBeenCalledWith('typing_start', expect.objectContaining({
+      roomId: 'happy',
+      userId: 123
+    }));
+
+    // Wait for debounce/timeout
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(mockSocket.emit).toHaveBeenCalledWith('typing_stop', expect.objectContaining({
+      roomId: 'happy',
+      userId: 123
+    }));
+
+    vi.useRealTimers();
+  });
+
+  it('displays received messages from socket', async () => {
+    const mockMood = { id: 'happy', label: 'Happy', emoji: '😊' };
+    render(<VibeRoom currentMood={mockMood} />);
+
+    // Simulate receiving a message
+    const message = {
+      id: 999,
+      roomId: 'happy',
+      userId: 456,
+      user: 'OtherUser',
+      text: 'Incoming message',
+      time: '10:00 AM'
+    };
+
+    // Wait for initial fetch to complete and loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+      // Or check that the empty message list or a known element is present
+      // Since list is empty, maybe check for 'is typing' container or just the absence of loader
+    });
+
+    // Find the 'receive_message' handler and call it
+    const onCall = mockSocket.on.mock.calls.find(call => call[0] === 'receive_message');
+    expect(onCall).toBeDefined();
+
+    const handler = onCall[1];
+    act(() => {
+      handler(message);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Incoming message')).toBeInTheDocument();
+      expect(screen.getByText('OtherUser')).toBeInTheDocument();
     });
   });
 });

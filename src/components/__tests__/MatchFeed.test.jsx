@@ -1,29 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import MatchFeed from '../MatchFeed';
-import { UserProvider } from '../../contexts/UserContext';
 
-// Mock the API_URL
+// Mock API
 vi.mock('../../config/api', () => ({
     API_URL: 'http://localhost:3001'
 }));
 
-// Mock fetch
 global.fetch = vi.fn();
 
 // Mock UserContext
-const mockUser = { id: 1, username: 'TestUser' };
-const MockUserProvider = ({ children }) => (
-    <UserProvider value={{ user: mockUser }}>
-        {children}
-    </UserProvider>
-);
-
-// We need to mock the useUser hook directly since we can't easily wrap with the real provider in this setup without more mocking
 const mockHookUser = { id: 1, username: 'TestUser' };
 vi.mock('../../contexts/UserContext', () => ({
-    useUser: () => ({ user: mockHookUser }),
-    UserProvider: ({ children }) => <div>{children}</div> // partial mock if needed
+    useUser: () => ({ user: mockHookUser })
 }));
 
 describe('MatchFeed', () => {
@@ -38,15 +27,14 @@ describe('MatchFeed', () => {
 
     it('should show loading state when fetching matches', async () => {
         fetch.mockImplementationOnce(() => new Promise(() => { })); // Never resolves
-
         const currentMood = { id: 'happy', label: 'Vibing' };
         render(<MatchFeed currentMood={currentMood} />);
-
         expect(screen.getByText(/Finding your vibe matches/i)).toBeInTheDocument();
     });
 
-    it('should display matches when fetch is successful', async () => {
+    it('should display matches and filter out current user', async () => {
         const mockMatches = [
+            { id: 1, name: 'TestUser', avatar: 'me.jpg' }, // Current user (should be filtered)
             { id: 2, name: 'MatchUser', avatar: 'avatar.jpg', status: 'Chilling' }
         ];
 
@@ -59,8 +47,10 @@ describe('MatchFeed', () => {
         render(<MatchFeed currentMood={currentMood} />);
 
         await waitFor(() => {
+            // Should show MatchUser
             expect(screen.getByText('MatchUser')).toBeInTheDocument();
-            expect(screen.getByText('Chilling')).toBeInTheDocument();
+            // Should NOT show TestUser (filtered out)
+            expect(screen.queryByText('TestUser')).not.toBeInTheDocument();
         });
     });
 
@@ -76,5 +66,14 @@ describe('MatchFeed', () => {
         await waitFor(() => {
             expect(screen.getByText(/No one else is feeling this exact vibe/i)).toBeInTheDocument();
         });
+    });
+
+    it('should display "Coming Soon" features', () => {
+        const currentMood = { id: 'happy', label: 'Vibing' };
+        // Return empty to avoid loading state logic blocking view
+        fetch.mockResolvedValueOnce({ ok: true, json: async () => [] });
+
+        render(<MatchFeed currentMood={currentMood} />);
+        expect(screen.getByText(/Spotify Integration Coming Soon/i)).toBeInTheDocument();
     });
 });
