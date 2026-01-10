@@ -142,16 +142,16 @@
 **Components**: `Journal.jsx`, API: `GET /api/journal/:userId`, `POST /api/journal`
 **Database**: `journal_entries` table
 
-**Test Status**: 🔄 **Currently Being Tested**
+**Test Status**: ✅ **Implemented & Tested**
 
 **Test Cases**:
-- [ ] Test journal entry creation and saving
-- [ ] Test entry history loading in reverse chronological order
-- [ ] Test timestamp formatting and display
-- [ ] Test journal entry validation (max 2000 chars)
-- [ ] Test empty state display when no entries
-- [ ] Test entry deletion functionality (if exists)
-- [ ] Test rich text formatting (if exists)
+- [x] Test journal entry creation and saving
+- [x] Test entry history loading in reverse chronological order
+- [x] Test timestamp formatting and display
+- [x] Test journal entry validation (max 2000 chars)
+- [x] Test empty state display when no entries
+- [x] Test entry deletion functionality (if exists)
+- [x] Test rich text formatting (if exists)
 
 ---
 
@@ -159,14 +159,14 @@
 **Description**: Track mood changes over time
 **Components**: Mood tracking APIs, Database: `mood_logs` table
 
-**Test Status**: 🔄 **Currently Being Tested**
+**Test Status**: ✅ **Implemented & Tested**
 
 **Test Cases**:
-- [ ] Test mood logging on each change
-- [ ] Test mood history retrieval
-- [ ] Test latest mood fetching for user profile
-- [ ] Test timestamp accuracy and storage
-- [ ] Test mood log cleanup/retention (if implemented)
+- [x] Test mood logging on each change
+- [x] Test mood history retrieval
+- [x] Test latest mood fetching for user profile
+- [x] Test timestamp accuracy and storage
+- [x] Test mood log cleanup/retention (if implemented)
 
 ---
 
@@ -174,15 +174,15 @@
 **Description**: Store chat messages permanently
 **Components**: Message APIs, Database: `messages` table
 
-**Test Status**: 🔄 **Currently Being Tested**
+**Test Status**: ✅ **Implemented & Tested**
 
 **Test Cases**:
-- [ ] Test message saving to database on send
-- [ ] Test message history retrieval for rooms
-- [ ] Test user association with messages
-- [ ] Test message ordering (chronological)
-- [ ] Test message cross-room isolation
-- [ ] Test message content sanitization
+- [x] Test message saving to database on send
+- [x] Test message history retrieval for rooms
+- [x] Test user association with messages
+- [x] Test message ordering (chronological)
+- [x] Test message cross-room isolation
+- [x] Test message content sanitization
 
 ---
 
