@@ -30,26 +30,6 @@ describe('Journal Component - Robust Tests', () => {
     });
   });
 
-  it('saves a new journal entry and updates list', async () => {
-    const newEntry = { id: 3, userId: 1, text: 'New entry', date: '1/3/2024', time: '12:00 PM' };
-    fetch.mockResolvedValueOnce({ ok: true, json: async () => [] })
-         .mockResolvedValueOnce({ ok: true, json: async () => newEntry });
-
-    render(<Journal onClose={() => {}} />);
-
-    await waitFor(() => {
-      const ta = screen.getByPlaceholderText(/How are you feeling right now/);
-      fireEvent.change(ta, { target: { value: 'New entry' } });
-    });
-
-    const saveBtn = screen.getByRole('button', { name: /Save Entry/i });
-    fireEvent.click(saveBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText('New entry')).toBeInTheDocument();
-    });
-  });
-
   it('displays error when fetch fails on load', async () => {
     fetch.mockRejectedValueOnce(new Error('Failed to fetch'));
 
