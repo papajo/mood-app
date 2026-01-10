@@ -71,11 +71,11 @@ This document outlines the plan to implement and test all features mentioned in 
 - [x] Git commit: "test: Verify profile management UI"
 
 #### 2.2 Layout and Design System
-- [ ] Test glass-panel styling
-- [ ] Test animated gradients
-- [ ] Test responsive behavior
-- [ ] Test accessibility features
-- [ ] Git commit: "test: Verify layout and design system"
+- [x] Test glass-panel styling
+- [x] Test animated gradients
+- [x] Test responsive behavior
+- [x] Test accessibility features
+- [x] Git commit: "test: Verify layout and design system"
 
 ---
 
