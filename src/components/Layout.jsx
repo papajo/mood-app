@@ -3,7 +3,7 @@ import { User } from 'lucide-react';
 
 const Layout = ({ children, onProfileClick }) => {
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-screen flex flex-col items-center justify-start pt-12 pb-4 px-4 relative overflow-hidden overflow-y-auto">
             {/* Background gradients */}
             <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
             <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-secondary/20 rounded-full blur-[100px] pointer-events-none" />

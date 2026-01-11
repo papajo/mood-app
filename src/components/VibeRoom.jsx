@@ -257,7 +257,7 @@ const VibeRoom = ({ currentMood }) => {
     }
 
     return (
-        <div className="flex flex-col h-[500px] glass-panel p-0 overflow-hidden">
+        <div className="flex flex-col h-[65vh] glass-panel p-0 overflow-hidden">
             <div className="p-4 border-b border-white/10 bg-white/5">
                 <h3 className="font-semibold text-white flex items-center gap-2">
                     <span className="text-xl">{currentMood.emoji}</span>
