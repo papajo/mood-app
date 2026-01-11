@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MoodMingle</string>
+    <string name="title_activity_main">MoodMingle</string>
+    <string name="package_name">com.moodmingle.app</string>
+    <string name="custom_url_scheme">com.moodmingle.app</string>
+</resources>

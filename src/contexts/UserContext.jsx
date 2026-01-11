@@ -36,6 +36,9 @@ export const UserProvider = ({ children }) => {
                     setLoading(false);
                     return;
                 }
+
+                // If response failed (e.g. 404 because DB was wiped), we fall through to create a new user
+                console.warn(`User ID ${savedUserId} not found. Creating new user.`);
             }
 
             // Create a new user with a default username

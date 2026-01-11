@@ -1,26 +1,71 @@
 version: '3.8'
 
 services:
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "5173:80"
+  # Database Service
+  db:
+    image: postgres:15-alpine
+    container_name: moodmingle-db
+    restart: always
     environment:
-      - VITE_API_URL=http://localhost:3001
-    depends_on:
-      - backend
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-moodmingle}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - moodmingle-network
 
+  # Backend Service
   backend:
     build:
       context: ./server
       dockerfile: Dockerfile
+    container_name: moodmingle-backend
+    restart: always
+    environment:
+      PORT: 3001
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-moodmingle}
+      # Use the container name 'db' as hostname
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-moodmingle}
+      FRONTEND_URL: http://localhost:5173
+    command: npm run dev
     ports:
       - "3001:3001"
+    depends_on:
+      - db
+    networks:
+      - moodmingle-network
+
+  # Frontend Service (Development mode for now, to keep HMR)
+  # In a real PROD setup, we would build static files and serve with Nginx
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: moodmingle-frontend
     volumes:
-      - ./server/moodmingle.db:/app/moodmingle.db
+      - ./:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
     environment:
-      - PORT=3001
-      - FRONTEND_URL=http://localhost:5173
-      - DB_PATH=/app/moodmingle.db
+      VITE_API_URL: http://localhost:3001
+      VITE_SOCKET_URL: http://localhost:3001
+    depends_on:
+      - backend
+    networks:
+      - moodmingle-network
+
+volumes:
+  postgres_data:
+
+
+networks:
+  moodmingle-network:
+    driver: bridge

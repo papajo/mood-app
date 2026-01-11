@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, User, Loader2 } from 'lucide-react';
+import { Send, User, Loader2, MoreVertical, ShieldAlert, Ban } from 'lucide-react';
 import io from 'socket.io-client';
 import { useUser } from '../contexts/UserContext';
 import { API_URL, SOCKET_URL } from '../config/api';
@@ -12,6 +12,7 @@ const VibeRoom = ({ currentMood }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [typingUsers, setTypingUsers] = useState(new Set());
+    const [activeMenuId, setActiveMenuId] = useState(null); // ID of message with open menu
     const typingTimeoutRef = useRef(null);
     const messagesEndRef = useRef(null);
     const socketRef = useRef(null);
@@ -126,6 +127,13 @@ const VibeRoom = ({ currentMood }) => {
         scrollToBottom();
     }, [messages]);
 
+    useEffect(() => {
+        // Close menu when clicking outside
+        const handleClickOutside = () => setActiveMenuId(null);
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, []);
+
     const handleInputChange = (e) => {
         setInputText(e.target.value);
 
@@ -160,6 +168,43 @@ const VibeRoom = ({ currentMood }) => {
                     userId: user.id
                 });
             }
+        }
+    };
+
+    const handleReport = async (msg) => {
+        try {
+            await fetch(`${API_URL}/api/report`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reporterId: user.id,
+                    reportedId: msg.userId,
+                    reason: 'Inappropriate content'
+                })
+            });
+            alert('User reported. Thank you for keeping MoodMingle safe.');
+        } catch (e) {
+            console.error('Report failed', e);
+        }
+    };
+
+    const handleBlock = async (msg) => {
+        if (!confirm(`Are you sure you want to block ${msg.user}?`)) return;
+        try {
+            await fetch(`${API_URL}/api/block`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    blockerId: user.id,
+                    blockedId: msg.userId
+                })
+            });
+
+            // Optimistically remove messages from this user
+            setMessages(prev => prev.filter(m => m.userId !== msg.userId));
+            alert(`You have blocked ${msg.user}.`);
+        } catch (e) {
+            console.error('Block failed', e);
         }
     };
 
@@ -243,7 +288,7 @@ const VibeRoom = ({ currentMood }) => {
                                         key={msg.id}
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}
+                                        className={`group flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}
                                     >
                                         {!isMe && (
                                             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -258,15 +303,48 @@ const VibeRoom = ({ currentMood }) => {
                                                 )}
                                             </div>
                                         )}
-                                        <div
-                                            className={`max-w-[80%] p-3 rounded-2xl ${isMe
-                                                ? 'bg-primary text-white rounded-tr-sm'
-                                                : 'bg-white/10 text-gray-200 rounded-tl-sm'
-                                                }`}
-                                        >
-                                            {!isMe && <p className="text-xs text-primary mb-1 font-medium">{msg.user}</p>}
-                                            <p className="text-sm">{msg.text}</p>
-                                            <p className="text-[10px] opacity-50 text-right mt-1">{msg.time}</p>
+                                        <div className="relative max-w-[80%]">
+                                            <div
+                                                className={`p-3 rounded-2xl ${isMe
+                                                    ? 'bg-primary text-white rounded-tr-sm'
+                                                    : 'bg-white/10 text-gray-200 rounded-tl-sm'
+                                                    }`}
+                                            >
+                                                {!isMe && <p className="text-xs text-primary mb-1 font-medium">{msg.user}</p>}
+                                                <p className="text-sm">{msg.text}</p>
+                                                <p className="text-[10px] opacity-50 text-right mt-1">{msg.time}</p>
+                                            </div>
+
+                                            {/* Context Menu for Reporting/Blocking */}
+                                            {!isMe && (
+                                                <div className="absolute top-0 -right-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        className="p-1 hover:bg-white/10 rounded-full text-gray-400"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActiveMenuId(activeMenuId === msg.id ? null : msg.id);
+                                                        }}
+                                                    >
+                                                        <MoreVertical size={14} />
+                                                    </button>
+                                                    {activeMenuId === msg.id && (
+                                                        <div className="absolute right-0 top-6 w-32 bg-slate-800 border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
+                                                            <button
+                                                                onClick={() => handleReport(msg)}
+                                                                className="w-full px-3 py-2 text-left text-xs text-yellow-400 hover:bg-white/5 flex items-center gap-2"
+                                                            >
+                                                                <ShieldAlert size={12} /> Report
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleBlock(msg)}
+                                                                className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-white/5 flex items-center gap-2"
+                                                            >
+                                                                <Ban size={12} /> Block
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </motion.div>
                                 );

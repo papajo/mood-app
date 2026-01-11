@@ -81,50 +81,84 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 
-// Initialize Database
-(async () => {
-    try {
-        await db.query(`CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username VARCHAR(255) UNIQUE NOT NULL,
-            avatar TEXT,
-            status TEXT,
-            current_mood_id VARCHAR(50),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`);
+// Initialize Database with Retry Logic
+const initializeDatabase = async (retries = 5, delay = 5000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            console.log(`Attempting to connect to database (Attempt ${i + 1}/${retries})...`);
 
-        await db.query(`CREATE TABLE IF NOT EXISTS mood_logs (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id),
-            mood_id VARCHAR(50),
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`);
+            // Define tables
+            await db.query(`CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                avatar TEXT,
+                status TEXT,
+                current_mood_id VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`);
 
-        await db.query(`CREATE TABLE IF NOT EXISTS journal_entries (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id),
-            text TEXT,
-            date VARCHAR(50),
-            time VARCHAR(50),
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`);
+            await db.query(`CREATE TABLE IF NOT EXISTS mood_logs (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                mood_id VARCHAR(50),
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`);
 
-        await db.query(`CREATE TABLE IF NOT EXISTS messages (
-            id SERIAL PRIMARY KEY,
-            room_id VARCHAR(50),
-            user_id INTEGER REFERENCES users(id),
-            "user" VARCHAR(255),
-            text TEXT,
-            time VARCHAR(50),
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`);
+            await db.query(`CREATE TABLE IF NOT EXISTS journal_entries (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                text TEXT,
+                date VARCHAR(50),
+                time VARCHAR(50),
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`);
 
-        console.log('Database tables initialized');
-    } catch (err) {
-        console.error('Error initializing database:', err);
+            await db.query(`CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                room_id VARCHAR(50),
+                user_id INTEGER REFERENCES users(id),
+                "user" VARCHAR(255),
+                text TEXT,
+                time VARCHAR(50),
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            await db.query(`CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY,
+                reporter_id INTEGER REFERENCES users(id),
+                reported_id INTEGER REFERENCES users(id),
+                reason TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            await db.query(`CREATE TABLE IF NOT EXISTS blocked_users (
+                id SERIAL PRIMARY KEY,
+                blocker_id INTEGER REFERENCES users(id),
+                blocked_id INTEGER REFERENCES users(id),
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(blocker_id, blocked_id)
+            )`);
+
+            console.log('Database tables initialized successfully');
+            return; // Success
+        } catch (err) {
+            console.error(`Database initialization failed: ${err.message}`);
+            if (i < retries - 1) {
+                console.log(`Retrying in ${delay / 1000} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            } else {
+                console.error('Max retries reached. Exiting.');
+                process.exit(1);
+            }
+        }
     }
-})();
+};
+
+
+
+
+
 
 // Socket.io Connection
 io.on('connection', (socket) => {
@@ -144,7 +178,7 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         currentRoom = roomId;
         currentUserId = userId;
-        console.log(`User ${socket.id} (${userId}) joined room: ${roomId}`);
+        console.log(`User ${socket.id} (${userId}) joined room: ${roomId} `);
     });
 
     socket.on('typing_start', (data) => {
@@ -259,6 +293,7 @@ app.post('/api/users', async (req, res) => {
             res.json({ id: newRows[0].id, username: sanitizedUsername, avatar: defaultAvatar, status: 'Just joined!', currentMoodId: null });
         }
     } catch (err) {
+        console.error('Error creating user:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -484,6 +519,63 @@ app.post('/api/journal', async (req, res) => {
     }
 });
 
+// Report a user
+app.post('/api/report', async (req, res) => {
+    try {
+        const { reporterId, reportedId, reason } = req.body;
+
+        // Validate inputs (Basic)
+        if (!reporterId || !reportedId || !reason) {
+            res.status(400).json({ error: 'Missing required fields' });
+            return;
+        }
+
+        await db.query(
+            'INSERT INTO reports (reporter_id, reported_id, reason) VALUES ($1, $2, $3)',
+            [reporterId, reportedId, reason]
+        );
+
+        res.json({ success: true, message: 'User reported successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Block a user
+app.post('/api/block', async (req, res) => {
+    try {
+        const { blockerId, blockedId } = req.body;
+
+        if (!blockerId || !blockedId) {
+            res.status(400).json({ error: 'Missing required fields' });
+            return;
+        }
+
+        await db.query(
+            'INSERT INTO blocked_users (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [blockerId, blockedId]
+        );
+
+        res.json({ success: true, message: 'User blocked successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get blocked users for a user
+app.get('/api/blocks/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { rows } = await db.query(
+            'SELECT blocked_id FROM blocked_users WHERE blocker_id = $1',
+            [userId]
+        );
+        res.json(rows.map(r => r.blocked_id));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get messages for a room (History)
 app.get('/api/messages/:roomId', async (req, res) => {
     try {
@@ -511,8 +603,14 @@ app.get('/api/messages/:roomId', async (req, res) => {
 });
 
 // Only start server if run directly
+// Only start server if run directly
 if (process.argv[1] === new URL(import.meta.url).pathname) {
-    httpServer.listen(port, () => {
-        console.log(`Server running at http://localhost:${port}`);
+    initializeDatabase().then(() => {
+        httpServer.listen(port, '0.0.0.0', () => {
+            console.log(`Server running at http://localhost:${port}`);
+        });
+    }).catch(err => {
+        console.error('Failed to start server:', err);
+        process.exit(1);
     });
 }
