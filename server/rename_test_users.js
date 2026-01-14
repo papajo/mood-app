@@ -5,13 +5,14 @@ async function renameTestUsers() {
     try {
         await initializeDatabase();
         
-        // Get all users with synthetic names
+        // Get all users with synthetic names (exclude authenticated users with emails)
         const { rows: users } = await db.query(`
-            SELECT id, username 
+            SELECT id, username, email
             FROM users 
-            WHERE username LIKE 'MoodTest%' 
+            WHERE (username LIKE 'MoodTest%' 
                OR username LIKE 'TestUser%' 
-               OR username LIKE 'GetTest%'
+               OR username LIKE 'GetTest%')
+            AND (email IS NULL OR email = '')
             ORDER BY id
         `);
         

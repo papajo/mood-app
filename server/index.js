@@ -1216,7 +1216,7 @@ app.post('/api/private-chat/request', async (req, res) => {
             VALUES (?, ?)
         `, [sanitizedRequesterId, sanitizedRequestedId]);
 
-        const { rows: requesterRows } = await db.query('SELECT username FROM users WHERE id = ?', [sanitizedRequesterId]);
+        const { rows: requesterRows } = await db.query('SELECT username, avatar FROM users WHERE id = ?', [sanitizedRequesterId]);
         
         // Send real-time notification to requested user
         if (requesterRows.length > 0) {
@@ -1225,9 +1225,12 @@ app.post('/api/private-chat/request', async (req, res) => {
                 requestId: result.rows[0]?.id,
                 requesterId: sanitizedRequesterId,
                 requesterUsername: requesterRows[0].username,
+                requesterAvatar: requesterRows[0].avatar || null,
+                createdAt: new Date().toISOString(),
                 message: `${requesterRows[0].username} wants to start a private chat 💬`
             };
             
+            console.log(`Emitting chat request notification to user ${sanitizedRequestedId}:`, notification);
             io.emit(`private_chat_request_${sanitizedRequestedId}`, notification);
         }
 

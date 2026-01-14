@@ -57,6 +57,7 @@ export const NotificationProvider = ({ children }) => {
             const response = await fetch(`${API_URL}/api/private-chat/requests/${userId}`);
             if (response.ok) {
                 const data = await response.json();
+                console.log('Fetched chat requests:', data);
                 // Only show recent requests (last 24 hours)
                 const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
                 const recentRequests = data.filter(r => 
@@ -69,6 +70,8 @@ export const NotificationProvider = ({ children }) => {
                     recalculateUnreadCount(prev, recentRequests);
                     return prev;
                 });
+            } else {
+                console.error('Failed to fetch chat requests:', response.status, response.statusText);
             }
         } catch (err) {
             console.error('Failed to fetch chat requests:', err);
@@ -120,18 +123,26 @@ export const NotificationProvider = ({ children }) => {
                 // Remove from pending requests and update unread count
                 setChatRequests(prev => {
                     const updated = prev.filter(req => req.id !== requestId);
-                    setUnreadCount(count => Math.max(0, count - (prev.length - updated.length)));
+                    const removedCount = prev.length - updated.length;
+                    setUnreadCount(count => Math.max(0, count - removedCount));
                     return updated;
                 });
                 
-                // Here you could navigate to the private chat room
+                // Show success feedback
                 if (result.roomId) {
                     console.log('Private chat room ready:', result.roomId);
-                    // You might want to update the current tab to the private chat
+                    // Could show a toast notification here
+                    alert('Chat request accepted! Private chat room created.');
+                } else {
+                    alert('Chat request accepted!');
                 }
+            } else {
+                const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(errorData.error || 'Failed to accept chat request');
             }
         } catch (err) {
             console.error('Failed to accept chat request:', err);
+            alert(`Error accepting chat request: ${err.message || 'Unknown error'}`);
         }
     }, []);
 
@@ -152,12 +163,18 @@ export const NotificationProvider = ({ children }) => {
                 // Remove from pending requests and update unread count
                 setChatRequests(prev => {
                     const updated = prev.filter(req => req.id !== requestId);
-                    setUnreadCount(count => Math.max(0, count - (prev.length - updated.length)));
+                    const removedCount = prev.length - updated.length;
+                    setUnreadCount(count => Math.max(0, count - removedCount));
                     return updated;
                 });
+                console.log('Chat request rejected successfully');
+            } else {
+                const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(errorData.error || 'Failed to reject chat request');
             }
         } catch (err) {
             console.error('Failed to reject chat request:', err);
+            alert(`Error rejecting chat request: ${err.message || 'Unknown error'}`);
         }
     }, []);
 

@@ -116,17 +116,28 @@ const MatchFeed = ({ currentMood }) => {
             if (result.status === 'existing') {
                 // Room already exists, you could navigate to the chat
                 console.log('Private chat room already exists:', result.roomId);
-            } else {
+                setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'accepted'));
+                alert('Chat room already exists! You can start chatting.');
+            } else if (result.success && result.requestId) {
                 // Set request status to pending
                 setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'pending'));
-                
-                // Show notification that request was sent
                 console.log(`Private chat request sent to ${targetUser.name}`);
+                // Show success feedback (could use a toast notification)
+            } else {
+                throw new Error('Unexpected response format');
             }
         } catch (err) {
             console.error('Failed to request private chat:', err);
-            if (err.message.includes('already pending')) {
+            const errorMessage = err.message || 'Failed to send chat request';
+            
+            if (errorMessage.includes('already pending')) {
                 setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'pending'));
+                alert('Chat request is already pending');
+            } else if (errorMessage.includes('already registered') || errorMessage.includes('existing')) {
+                setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'accepted'));
+                alert('You already have an active chat with this user');
+            } else {
+                alert(`Error: ${errorMessage}`);
             }
         }
     };
