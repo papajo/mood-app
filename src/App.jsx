@@ -6,6 +6,8 @@ import VibeRoom from './components/VibeRoom';
 import MoodBooster from './components/MoodBooster';
 import Journal from './components/Journal';
 import UserProfile from './components/UserProfile';
+import Login from './components/Login';
+import Signup from './components/Signup';
 import { Users, MessageSquare, Sparkles, BookOpen } from 'lucide-react';
 import { findMoodById } from './constants/moods';
 import { UserProvider, useUser } from './contexts/UserContext';
@@ -14,12 +16,13 @@ import NotificationButton from './components/NotificationButton';
 import { API_URL } from './config/api';
 
 function AppContent() {
-    const { user, loading: userLoading } = useUser();
+    const { user, loading: userLoading, isAuthenticated, login } = useUser();
     const { fetchHeartNotifications, fetchChatRequests } = useNotifications();
     const [currentMood, setCurrentMood] = useState(null);
     const [activeTab, setActiveTab] = useState('feed');
     const [moodLoading, setMoodLoading] = useState(true);
     const [showProfile, setShowProfile] = useState(false);
+    const [showSignup, setShowSignup] = useState(false);
 
     // Fetch initial mood from server and notifications
     useEffect(() => {
@@ -116,7 +119,44 @@ function AppContent() {
         });
     };
 
-    if (userLoading || moodLoading) {
+    if (userLoading) {
+        return (
+            <Layout>
+                <div className="glass-panel text-center py-10">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="mt-4 text-gray-400">Loading...</p>
+                </div>
+            </Layout>
+        );
+    }
+
+    // Show login/signup if user is not authenticated
+    if (!user || !isAuthenticated) {
+        return (
+            <Layout>
+                <div className="flex flex-col items-center justify-center min-h-[60vh]">
+                    {showSignup ? (
+                        <Signup
+                            onSuccess={(userData, token) => {
+                                login(userData, token);
+                                setShowSignup(false);
+                            }}
+                            onSwitchToLogin={() => setShowSignup(false)}
+                        />
+                    ) : (
+                        <Login
+                            onSuccess={(userData, token) => {
+                                login(userData, token);
+                            }}
+                            onSwitchToSignup={() => setShowSignup(true)}
+                        />
+                    )}
+                </div>
+            </Layout>
+        );
+    }
+
+    if (moodLoading) {
         return (
             <Layout>
                 <div className="glass-panel text-center py-10">

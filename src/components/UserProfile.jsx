@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Edit2, Save, X, Loader2 } from 'lucide-react';
+import { User, Edit2, Save, X, Loader2, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { API_URL } from '../config/api';
 import { moods } from '../constants/moods';
 
 const UserProfile = ({ onClose }) => {
-    const { user, updateUserStatus, refreshUser } = useUser();
+    const { user, updateUserStatus, refreshUser, logout, isAuthenticated } = useUser();
     const [isEditing, setIsEditing] = useState(false);
     const [status, setStatus] = useState(user?.status || '');
     const [avatar, setAvatar] = useState(user?.avatar || '');
@@ -184,13 +184,27 @@ const UserProfile = ({ onClose }) => {
                                 </button>
                             </>
                         ) : (
-                            <button
-                                onClick={() => setIsEditing(true)}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/80 transition-colors"
-                            >
-                                <Edit2 size={16} />
-                                Edit Profile
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => setIsEditing(true)}
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/80 transition-colors"
+                                >
+                                    <Edit2 size={16} />
+                                    Edit Profile
+                                </button>
+                                {isAuthenticated && (
+                                    <button
+                                        onClick={() => {
+                                            logout();
+                                            if (onClose) onClose();
+                                        }}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg hover:bg-red-500/30 transition-colors"
+                                    >
+                                        <LogOut size={16} />
+                                        Logout
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

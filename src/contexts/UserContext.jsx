@@ -15,6 +15,7 @@ export const UserProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
     // Initialize user on mount
     useEffect(() => {
@@ -38,18 +39,81 @@ export const UserProvider = ({ children }) => {
         }
     };
 
+    // Login function
+    const login = async (userData, token) => {
+        setUser(userData);
+        setIsAuthenticated(true);
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('userId', userData.id);
+        localStorage.setItem('username', userData.username);
+        localStorage.setItem('mood mingle-user', JSON.stringify(userData));
+        setLoading(false);
+    };
+
+    // Logout function
+    const logout = () => {
+        setUser(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('username');
+        localStorage.removeItem('mood mingle-user');
+    };
+
+    // Verify authentication token
+    const verifyAuth = async () => {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            return false;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/api/auth/verify`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setUser(data.user);
+                setIsAuthenticated(true);
+                localStorage.setItem('userId', data.user.id);
+                localStorage.setItem('username', data.user.username);
+                localStorage.setItem('mood mingle-user', JSON.stringify(data.user));
+                return true;
+            } else {
+                // Token invalid, clear it
+                logout();
+                return false;
+            }
+        } catch (err) {
+            console.error('Failed to verify token:', err);
+            logout();
+            return false;
+        }
+    };
+
     const initializeUser = async () => {
         try {
-            // Check if user exists in localStorage
+            // First, try to verify authentication token
+            const isAuth = await verifyAuth();
+            if (isAuth) {
+                setLoading(false);
+                return;
+            }
+
+            // If not authenticated, check for guest user in localStorage
             const savedUserId = localStorage.getItem('userId');
             const savedUsername = localStorage.getItem('username');
 
             if (savedUserId && savedUsername) {
-                // Try to fetch existing user
+                // Try to fetch existing guest user
                 const response = await fetch(`${API_URL}/api/users/${savedUserId}`);
                 if (response.ok) {
                     const userData = await response.json();
                     setUser(userData);
+                    setIsAuthenticated(false);
                     setLoading(false);
                     return;
                 }
@@ -64,43 +128,24 @@ export const UserProvider = ({ children }) => {
                 try {
                     const userData = JSON.parse(fullUserData);
                     // Verify this user still exists on backend
-                    fetch(`${API_URL}/api/users/${userData.id}`)
-                        .then(res => {
-                            if (res.ok) {
-                                setUser(userData);
-                                setLoading(false);
-                                return;
-                            } else {
-                                console.warn(`User ${userData.id} no longer exists, creating new user`);
-                                // Clear invalid user data and continue to auto-create
-                                localStorage.removeItem('mood mingle-user');
-                            }
-                        })
-                        .catch(err => {
-                            console.error('Failed to verify user:', err);
-                        });
+                    const verifyResponse = await fetch(`${API_URL}/api/users/${userData.id}`);
+                    if (verifyResponse.ok) {
+                        setUser(userData);
+                        setIsAuthenticated(false);
+                        setLoading(false);
+                        return;
+                    } else {
+                        console.warn(`User ${userData.id} no longer exists, creating new user`);
+                        // Clear invalid user data and continue to auto-create
+                        localStorage.removeItem('mood mingle-user');
+                    }
                 } catch (e) {
                     console.warn('Failed to parse user data, creating new user');
                 }
             }
 
-            // Create a new user with a default username
-            const username = savedUsername || `User${Math.floor(Math.random() * 10000)}`;
-            const response = await fetch(`${API_URL}/api/users`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to create user');
-            }
-
-            const userData = await response.json();
-            setUser(userData);
-            localStorage.setItem('userId', userData.id);
-            localStorage.setItem('username', userData.username);
-            localStorage.setItem('mood mingle-user', JSON.stringify(userData));
+            // For guest users, we'll wait for them to sign up or login
+            // Don't auto-create guest users anymore
             setLoading(false);
         } catch (err) {
             setError(err.message);
@@ -130,6 +175,9 @@ export const UserProvider = ({ children }) => {
         user,
         loading,
         error,
+        isAuthenticated,
+        login,
+        logout,
         updateUserStatus,
         refreshUser: initializeUser,
         switchToUser

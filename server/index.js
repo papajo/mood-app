@@ -4,6 +4,8 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import db, { initializeDatabase } from './db.js';
 
 // Input validation utilities
@@ -75,6 +77,52 @@ const validateHeartNotification = (senderId, receiverId) => {
     return { valid: true };
 };
 
+const validateEmail = (email) => {
+    if (!email || typeof email !== 'string') {
+        return { valid: false, error: 'Email is required and must be a string' };
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+        return { valid: false, error: 'Invalid email format' };
+    }
+    return { valid: true, sanitized: email.trim().toLowerCase() };
+};
+
+const validatePassword = (password) => {
+    if (!password || typeof password !== 'string') {
+        return { valid: false, error: 'Password is required and must be a string' };
+    }
+    if (password.length < 6) {
+        return { valid: false, error: 'Password must be at least 6 characters long' };
+    }
+    if (password.length > 100) {
+        return { valid: false, error: 'Password cannot exceed 100 characters' };
+    }
+    return { valid: true };
+};
+
+// JWT Secret - use environment variable or default for development
+const JWT_SECRET = process.env.JWT_SECRET || 'mood-mingle-secret-key-change-in-production';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+// Middleware to verify JWT token
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (!token) {
+        return res.status(401).json({ error: 'Access token required' });
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ error: 'Invalid or expired token' });
+        }
+        req.user = user;
+        next();
+    });
+};
+
 export const app = express();
 export const httpServer = createServer(app);
 
@@ -134,12 +182,53 @@ export const initializeDatabaseTables = async () => {
         await db.query(`CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username VARCHAR(255) UNIQUE NOT NULL,
+            email VARCHAR(255) UNIQUE,
+            password_hash TEXT,
             avatar TEXT,
             status TEXT,
             current_mood_id VARCHAR(50),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
+
+        // Migration: Add email and password_hash columns if they don't exist
+        // SQLite doesn't support adding UNIQUE constraints directly, so we add the column first
+        // and then create a unique index if needed
+        try {
+            // Check if email column exists
+            const emailCheck = await db.query(`PRAGMA table_info(users)`);
+            const hasEmail = emailCheck.rows.some(col => col.name === 'email');
+            
+            if (!hasEmail) {
+                await db.query(`ALTER TABLE users ADD COLUMN email VARCHAR(255)`);
+                // Create unique index for email
+                try {
+                    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+                } catch (idxErr) {
+                    console.warn('Could not create email index:', idxErr.message);
+                }
+            }
+        } catch (err) {
+            // Column might already exist, ignore error
+            if (!err.message.includes('duplicate column name') && !err.message.includes('already exists')) {
+                console.warn('Migration note (email):', err.message);
+            }
+        }
+
+        try {
+            // Check if password_hash column exists
+            const pwdCheck = await db.query(`PRAGMA table_info(users)`);
+            const hasPasswordHash = pwdCheck.rows.some(col => col.name === 'password_hash');
+            
+            if (!hasPasswordHash) {
+                await db.query(`ALTER TABLE users ADD COLUMN password_hash TEXT`);
+            }
+        } catch (err) {
+            // Column might already exist, ignore error
+            if (!err.message.includes('duplicate column name') && !err.message.includes('already exists')) {
+                console.warn('Migration note (password_hash):', err.message);
+            }
+        }
 
         await db.query(`CREATE TABLE IF NOT EXISTS mood_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -389,8 +478,185 @@ io.on('connection', (socket) => {
 
 // --- API Endpoints ---
 
+// Authentication Endpoints
+// Signup
+app.post('/api/auth/signup', async (req, res) => {
+    try {
+        const { username, email, password } = req.body;
+
+        // Validate inputs
+        const usernameValidation = validateUsername(username);
+        if (!usernameValidation.valid) {
+            res.status(400).json({ error: usernameValidation.error });
+            return;
+        }
+
+        const emailValidation = validateEmail(email);
+        if (!emailValidation.valid) {
+            res.status(400).json({ error: emailValidation.error });
+            return;
+        }
+
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.valid) {
+            res.status(400).json({ error: passwordValidation.error });
+            return;
+        }
+
+        const sanitizedUsername = usernameValidation.sanitized;
+        const sanitizedEmail = emailValidation.sanitized;
+
+        // Check if username already exists
+        const { rows: usernameRows } = await db.query('SELECT id FROM users WHERE username = ?', [sanitizedUsername]);
+        if (usernameRows.length > 0) {
+            res.status(400).json({ error: 'Username already taken' });
+            return;
+        }
+
+        // Check if email already exists
+        const { rows: emailRows } = await db.query('SELECT id FROM users WHERE email = ?', [sanitizedEmail]);
+        if (emailRows.length > 0) {
+            res.status(400).json({ error: 'Email already registered' });
+            return;
+        }
+
+        // Hash password
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(password, saltRounds);
+
+        // Create user
+        const defaultAvatar = `https://i.pravatar.cc/150?u=${sanitizedEmail}`;
+        const result = await db.query(
+            'INSERT INTO users (username, email, password_hash, avatar, status) VALUES (?, ?, ?, ?, ?)',
+            [sanitizedUsername, sanitizedEmail, passwordHash, defaultAvatar, 'Just joined!']
+        );
+        const newId = result.rows[0]?.id;
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { userId: newId, username: sanitizedUsername, email: sanitizedEmail },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+        );
+
+        res.status(201).json({
+            token,
+            user: {
+                id: newId,
+                username: sanitizedUsername,
+                email: sanitizedEmail,
+                avatar: defaultAvatar,
+                status: 'Just joined!',
+                currentMoodId: null
+            }
+        });
+    } catch (err) {
+        console.error('Error during signup:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Login
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Validate inputs
+        const emailValidation = validateEmail(email);
+        if (!emailValidation.valid) {
+            res.status(400).json({ error: emailValidation.error });
+            return;
+        }
+
+        if (!password || typeof password !== 'string') {
+            res.status(400).json({ error: 'Password is required' });
+            return;
+        }
+
+        const sanitizedEmail = emailValidation.sanitized;
+
+        // Find user by email
+        const { rows } = await db.query('SELECT * FROM users WHERE email = ?', [sanitizedEmail]);
+        if (rows.length === 0) {
+            res.status(401).json({ error: 'Invalid email or password' });
+            return;
+        }
+
+        const user = rows[0];
+
+        // Check if user has a password (authenticated user)
+        if (!user.password_hash) {
+            res.status(401).json({ error: 'This account was created without a password. Please sign up again.' });
+            return;
+        }
+
+        // Verify password
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+        if (!passwordMatch) {
+            res.status(401).json({ error: 'Invalid email or password' });
+            return;
+        }
+
+        // Update last_active
+        await db.query('UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { userId: user.id, username: user.username, email: user.email },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+        );
+
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar,
+                status: user.status,
+                currentMoodId: user.current_mood_id
+            }
+        });
+    } catch (err) {
+        console.error('Error during login:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Verify token (for checking if user is still authenticated)
+app.get('/api/auth/verify', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { rows } = await db.query(
+            'SELECT id, username, email, avatar, status, current_mood_id FROM users WHERE id = ?',
+            [userId]
+        );
+
+        if (rows.length === 0) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+
+        const user = rows[0];
+        res.json({
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar,
+                status: user.status,
+                currentMoodId: user.current_mood_id
+            }
+        });
+    } catch (err) {
+        console.error('Error verifying token:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // User Management
-// Create or get user
+// Create or get user (for backward compatibility - guest users)
 app.post('/api/users', async (req, res) => {
     try {
         const { username, avatar } = req.body;
