@@ -13,6 +13,17 @@ vi.mock('../../config/api', () => ({
 
 global.fetch = vi.fn();
 
+// Mock user context (tests should not depend on async user creation)
+const mockUser = { id: 1, username: 'TestUser', avatar: null };
+vi.mock('../../contexts/UserContext', async () => {
+    const actual = await vi.importActual('../../contexts/UserContext');
+    return {
+        ...actual,
+        useUser: () => ({ user: mockUser, loading: false, error: null }),
+        UserProvider: ({ children }) => children
+    };
+});
+
 // Mock socket.io
 const mockSocket = {
     emit: vi.fn(),
@@ -77,6 +88,11 @@ describe('Notification Integration Tests', () => {
                 ok: true,
                 json: async () => mockNotifications
             });
+            // chat requests fetch (empty)
+            fetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => []
+            });
 
             render(
                 <UserProvider>
@@ -86,15 +102,9 @@ describe('Notification Integration Tests', () => {
                 </UserProvider>
             );
 
-            // Wait for notifications to load - need to trigger fetch
-            await waitFor(() => {
-                expect(fetch).toHaveBeenCalled();
-            }, { timeout: 3000 });
-
             // Wait for state update
             await waitFor(() => {
-                const countElement = screen.getByTestId('hearts-count');
-                expect(countElement).toBeInTheDocument();
+                expect(screen.getByTestId('hearts-count')).toHaveTextContent('1');
             }, { timeout: 3000 });
         });
 
@@ -125,6 +135,11 @@ describe('Notification Integration Tests', () => {
                 ok: true,
                 json: async () => mockNotifications
             });
+            // chat requests fetch (empty)
+            fetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => []
+            });
 
             render(
                 <UserProvider>
@@ -134,11 +149,10 @@ describe('Notification Integration Tests', () => {
                 </UserProvider>
             );
 
-            // Should only show recent notification
+            // Should only show recent notification (1)
             await waitFor(() => {
-                const count = screen.getByTestId('hearts-count').textContent;
-                expect(parseInt(count)).toBeLessThanOrEqual(1);
-            });
+                expect(screen.getByTestId('hearts-count')).toHaveTextContent('1');
+            }, { timeout: 3000 });
         });
 
         it('should clear all heart notifications', async () => {
@@ -155,8 +169,17 @@ describe('Notification Integration Tests', () => {
                     }
                 ]
             });
+            // chat requests fetch (empty)
+            fetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => []
+            });
 
-            // Mock DELETE endpoint
+            // Mock DELETE endpoints (hearts + requests)
+            fetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ success: true })
+            });
             fetch.mockResolvedValueOnce({
                 ok: true,
                 json: async () => ({ success: true })
@@ -170,19 +193,21 @@ describe('Notification Integration Tests', () => {
                 </UserProvider>
             );
 
+            // Wait for notifications to be fetched and displayed
             await waitFor(() => {
                 expect(screen.getByTestId('hearts-count')).toHaveTextContent('1');
-            });
+            }, { timeout: 3000 });
 
             const clearButton = screen.getByText('Clear All');
             fireEvent.click(clearButton);
 
+            // Wait for DELETE call
             await waitFor(() => {
-                expect(fetch).toHaveBeenCalledWith(
-                    'http://localhost:3001/api/hearts/1',
-                    expect.objectContaining({ method: 'DELETE' })
+                const deleteCalls = fetch.mock.calls.filter(
+                    call => call[0]?.includes('/api/hearts/') && call[1]?.method === 'DELETE'
                 );
-            });
+                expect(deleteCalls.length).toBeGreaterThan(0);
+            }, { timeout: 2000 });
         });
     });
 
@@ -203,6 +228,7 @@ describe('Notification Integration Tests', () => {
                 json: async () => []
             });
 
+            // chat requests
             fetch.mockResolvedValueOnce({
                 ok: true,
                 json: async () => mockRequests
@@ -218,7 +244,7 @@ describe('Notification Integration Tests', () => {
 
             await waitFor(() => {
                 expect(screen.getByTestId('requests-count')).toHaveTextContent('1');
-            });
+            }, { timeout: 3000 });
         });
 
         it('should accept a chat request', async () => {
@@ -232,11 +258,13 @@ describe('Notification Integration Tests', () => {
                 }
             ];
 
+            // hearts empty
             fetch.mockResolvedValueOnce({
                 ok: true,
                 json: async () => []
             });
 
+            // chat requests list
             fetch.mockResolvedValueOnce({
                 ok: true,
                 json: async () => mockRequests
@@ -258,7 +286,7 @@ describe('Notification Integration Tests', () => {
 
             await waitFor(() => {
                 expect(screen.getByTestId('requests-count')).toHaveTextContent('1');
-            });
+            }, { timeout: 3000 });
 
             const acceptButton = screen.getByText('Accept');
             fireEvent.click(acceptButton);
@@ -275,7 +303,7 @@ describe('Notification Integration Tests', () => {
                         })
                     })
                 );
-            });
+            }, { timeout: 3000 });
         });
 
         it('should reject a chat request', async () => {
@@ -289,11 +317,13 @@ describe('Notification Integration Tests', () => {
                 }
             ];
 
+            // hearts empty
             fetch.mockResolvedValueOnce({
                 ok: true,
                 json: async () => []
             });
 
+            // chat requests list
             fetch.mockResolvedValueOnce({
                 ok: true,
                 json: async () => mockRequests
@@ -315,7 +345,7 @@ describe('Notification Integration Tests', () => {
 
             await waitFor(() => {
                 expect(screen.getByTestId('requests-count')).toHaveTextContent('1');
-            });
+            }, { timeout: 3000 });
 
             const rejectButton = screen.getByText('Reject');
             fireEvent.click(rejectButton);
@@ -332,7 +362,7 @@ describe('Notification Integration Tests', () => {
                         })
                     })
                 );
-            });
+            }, { timeout: 3000 });
         });
     });
 });

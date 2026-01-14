@@ -112,9 +112,9 @@ describe('UserContext', () => {
     expect(screen.getByTestId('user-id')).toHaveTextContent('123');
     expect(screen.getByTestId('username')).toHaveTextContent('TestUser');
 
-    // Should call GET /api/users/:id
+    // Should call GET /api/users/:id (may be localhost or IP from .env)
     expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:3001/api/users/123'
+      expect.stringContaining('/api/users/123')
     );
   });
 

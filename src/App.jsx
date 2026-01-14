@@ -23,24 +23,40 @@ function AppContent() {
 
     // Fetch initial mood from server and notifications
     useEffect(() => {
-        if (!user) {
+        if (!user || !user.id) {
             console.log('No user found, skipping mood fetch');
+            setMoodLoading(false);
             return;
         }
 
-        console.log('Fetching mood for user:', user.id);
+        const userId = user.id;
+        if (!userId) {
+            console.log('User ID is missing, skipping mood fetch');
+            setMoodLoading(false);
+            return;
+        }
+
+        console.log('Fetching mood for user:', userId);
         setMoodLoading(true);
         
         // Fetch notifications when user is loaded
-        fetchHeartNotifications(user.id);
-        fetchChatRequests(user.id);
+        fetchHeartNotifications(userId);
+        fetchChatRequests(userId);
         
         const timeout = setTimeout(() => {
             console.log('Mood fetch timeout - setting loading to false');
             setMoodLoading(false);
         }, 5000);
 
-        fetch(`${API_URL}/api/mood/${user.id}`)
+        const moodFetch = fetch(`${API_URL}/api/mood/${userId}`);
+        if (!moodFetch || typeof moodFetch.then !== 'function') {
+            console.error('Fetch is not properly available');
+            clearTimeout(timeout);
+            setMoodLoading(false);
+            return;
+        }
+
+        moodFetch
             .then(res => {
                 clearTimeout(timeout);
                 if (!res.ok) {

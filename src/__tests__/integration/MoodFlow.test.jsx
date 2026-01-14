@@ -3,13 +3,32 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import App from '../../App';
 import { UserProvider } from '../../contexts/UserContext';
+import { NotificationProvider } from '../../contexts/NotificationContext';
 
 global.fetch = vi.fn();
+
+// Mock socket.io
+const mockSocket = {
+    emit: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+    connected: true
+};
+
+vi.mock('socket.io-client', () => ({
+    default: vi.fn(() => mockSocket)
+}));
 
 describe('Mood Flow Integration', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         localStorage.clear();
+        // Reset fetch mock to a safe default for this test file
+        fetch.mockReset();
+        fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({})
+        });
     });
 
     it('should allow user to select mood and see it saved', async () => {
@@ -17,6 +36,10 @@ describe('Mood Flow Integration', () => {
         localStorage.setItem('userId', '1');
         localStorage.setItem('username', 'TestUser');
 
+        const user = userEvent.setup();
+        
+        // Mock all API calls in order
+        // 1. User fetch
         fetch.mockResolvedValueOnce({
             ok: true,
             json: async () => ({
@@ -28,12 +51,38 @@ describe('Mood Flow Integration', () => {
             }),
         });
 
+        // 2. Mood fetch (returns null if no mood set)
         fetch.mockResolvedValueOnce({
             ok: true,
             json: async () => null,
         });
 
-        // Mock mood save
+        // 3. Notifications fetch (hearts)
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => [],
+        });
+
+        // 4. Notifications fetch (chat requests)
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => [],
+        });
+
+        render(
+            <UserProvider>
+                <NotificationProvider>
+                    <App />
+                </NotificationProvider>
+            </UserProvider>
+        );
+
+        // Wait for mood tracker to load (this will wait for user to load too)
+        await waitFor(() => {
+            expect(screen.getByText(/How's the energy/i)).toBeInTheDocument();
+        }, { timeout: 5000 });
+
+        // Mock mood save (for when user clicks mood)
         fetch.mockResolvedValueOnce({
             ok: true,
             json: async () => ({
@@ -41,18 +90,6 @@ describe('Mood Flow Integration', () => {
                 userId: 1,
                 moodId: 'happy',
             }),
-        });
-
-        const user = userEvent.setup();
-        render(
-            <UserProvider>
-                <App />
-            </UserProvider>
-        );
-
-        // Wait for mood tracker to load
-        await waitFor(() => {
-            expect(screen.getByText(/How's the energy/i)).toBeInTheDocument();
         });
 
         // Find and click the happy mood (😊)

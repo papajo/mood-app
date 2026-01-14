@@ -2,9 +2,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import App from '../../App';
 import { UserProvider } from '../../contexts/UserContext';
+import { NotificationProvider } from '../../contexts/NotificationContext';
 
 // Mock API
-global.fetch = vi.fn();
+global.fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({})
+});
 
 // Mock socket.io
 vi.mock('socket.io-client', () => ({
@@ -20,6 +24,11 @@ describe('App Integration Tests', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         localStorage.clear();
+        // Ensure fetch always returns a promise unless overridden by mockResolvedValueOnce
+        fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({})
+        });
     });
 
     it('should render app and create user on first load', async () => {
@@ -35,7 +44,16 @@ describe('App Integration Tests', () => {
             }),
         });
 
-        // Mock mood fetch (no mood yet)
+        // Mock notifications (hearts + chat requests) - App fetches these BEFORE mood fetch
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => [],
+        });
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => [],
+        });
         fetch.mockResolvedValueOnce({
             ok: true,
             json: async () => null,
@@ -43,7 +61,9 @@ describe('App Integration Tests', () => {
 
         render(
             <UserProvider>
-                <App />
+                <NotificationProvider>
+                    <App />
+                </NotificationProvider>
             </UserProvider>
         );
 
@@ -77,12 +97,23 @@ describe('App Integration Tests', () => {
 
         fetch.mockResolvedValueOnce({
             ok: true,
+            json: async () => [],
+        });
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => [],
+        });
+        fetch.mockResolvedValueOnce({
+            ok: true,
             json: async () => null,
         });
 
         render(
             <UserProvider>
-                <App />
+                <NotificationProvider>
+                    <App />
+                </NotificationProvider>
             </UserProvider>
         );
 
@@ -95,28 +126,44 @@ describe('App Integration Tests', () => {
         localStorage.setItem('userId', '1');
         localStorage.setItem('username', 'TestUser');
 
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({
-                id: 1,
-                username: 'TestUser',
-                avatar: null,
-                status: 'Test',
-                currentMoodId: null,
-            }),
+        // Use URL-based fetch mocking to avoid brittle call ordering
+        fetch.mockImplementation(async (input) => {
+            const url = String(input);
+            if (url.includes('/api/users/1')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        id: 1,
+                        username: 'TestUser',
+                        avatar: null,
+                        status: 'Test',
+                        currentMoodId: null,
+                    }),
+                };
+            }
+            if (url.includes('/api/hearts/')) {
+                return { ok: true, json: async () => [] };
+            }
+            if (url.includes('/api/private-chat/requests/')) {
+                return { ok: true, json: async () => [] };
+            }
+            if (url.includes('/api/mood/')) {
+                return { ok: true, json: async () => null };
+            }
+            if (url.includes('/api/journal/')) {
+                return { ok: true, json: async () => [] };
+            }
+            // Default safe response
+            return { ok: true, json: async () => [] };
         });
 
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => null,
-        });
-
-        const { user } = await import('@testing-library/user-event');
-        const userEvent = user.setup();
+        const userEvent = (await import('@testing-library/user-event')).userEvent.setup();
 
         render(
             <UserProvider>
-                <App />
+                <NotificationProvider>
+                    <App />
+                </NotificationProvider>
             </UserProvider>
         );
 
@@ -125,7 +172,7 @@ describe('App Integration Tests', () => {
         });
 
         // Click on Journal tab
-        const journalTab = screen.getByText(/Journal/i);
+        const journalTab = await screen.findByText(/Journal/i, {}, { timeout: 5000 });
         await userEvent.click(journalTab);
 
         // Should show journal content
