@@ -121,7 +121,7 @@ app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 // Initialize Database with SQLite
-const initializeDatabaseTables = async () => {
+export const initializeDatabaseTables = async () => {
     try {
         console.log('Initializing SQLite database...');
         
@@ -991,25 +991,28 @@ app.post('/api/private-chat/respond', async (req, res) => {
 
         const sanitizedUserId = userIdValidation.sanitized;
 
-        // Update request status
-        console.log('Updating request:', { requestId, userId, response });
-        
-        const { rows: requestRows } = await db.query(`
-            UPDATE private_chat_requests 
-            SET status = ?, updated_at = CURRENT_TIMESTAMP 
-            WHERE id = ? AND requested_id = ?
-            RETURNING requester_id, requested_id
-        `, [response === 'accept' ? 'accepted' : 'rejected', requestId, sanitizedUserId]);
+        // First check if request exists and get its data
+        const { rows: existingRows } = await db.query(`
+            SELECT requester_id, requested_id FROM private_chat_requests 
+            WHERE id = ? AND requested_id = ? AND status = 'pending'
+        `, [requestId, sanitizedUserId]);
 
-        console.log('Query result rows:', requestRows);
-
-        if (requestRows.length === 0) {
+        if (existingRows.length === 0) {
             console.log('Request not found - requestId or userId mismatch');
             res.status(404).json({ error: 'Request not found' });
             return;
         }
 
-        const request = requestRows[0];
+        const request = existingRows[0];
+
+        // Update request status
+        console.log('Updating request:', { requestId, userId, response });
+        
+        await db.query(`
+            UPDATE private_chat_requests 
+            SET status = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ? AND requested_id = ?
+        `, [response === 'accept' ? 'accepted' : 'rejected', requestId, sanitizedUserId]);
         let roomId = null;
 
         if (response === 'accept') {

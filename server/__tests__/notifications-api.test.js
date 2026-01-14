@@ -12,11 +12,16 @@ let app;
 let testDbPath;
 
 beforeAll(async () => {
-    // Set test database path
+    // Set test database path BEFORE importing server
     process.env.DB_PATH = path.join(__dirname, '../test-notifications.db');
     testDbPath = process.env.DB_PATH;
     
-    // Import server after setting env
+    // Remove existing test database for clean start
+    if (fs.existsSync(testDbPath)) {
+        fs.unlinkSync(testDbPath);
+    }
+    
+    // Import server after setting env - this will use the test DB
     const serverModule = await import('../index.js');
     app = serverModule.app;
     
@@ -25,10 +30,7 @@ beforeAll(async () => {
     }
     
     // Initialize database tables
-    const { initializeDatabaseTables } = await import('../index.js');
-    if (initializeDatabaseTables) {
-        await initializeDatabaseTables();
-    }
+    await serverModule.initializeDatabaseTables();
 });
 
 afterAll(async () => {
@@ -229,13 +231,15 @@ describe('Notification API Integration Tests', () => {
                     requestedId: user2Id
                 });
 
+            expect(requestRes.statusCode).toBe(200);
             const requestId = requestRes.body.requestId;
+            expect(requestId).toBeDefined();
 
             // Reject the request
             const res = await request(app)
                 .post('/api/private-chat/respond')
                 .send({
-                    requestId: requestId,
+                    requestId: parseInt(requestId),
                     userId: user2Id,
                     response: 'reject'
                 });

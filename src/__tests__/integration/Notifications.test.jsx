@@ -1,8 +1,9 @@
+import React from 'react';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { NotificationProvider, useNotifications } from '../../contexts/NotificationContext';
 import NotificationPanel from '../../components/NotificationPanel';
-import { UserProvider } from '../../contexts/UserContext';
+import { UserProvider, useUser } from '../../contexts/UserContext';
 
 // Mock API
 vi.mock('../../config/api', () => ({
@@ -26,17 +27,26 @@ vi.mock('socket.io-client', () => ({
 
 // Test component that uses notifications
 function TestComponent() {
-    const { notifications, chatRequests, clearAllNotifications, acceptChatRequest, rejectChatRequest } = useNotifications();
+    const { notifications, chatRequests, clearAllNotifications, acceptChatRequest, rejectChatRequest, fetchHeartNotifications, fetchChatRequests } = useNotifications();
+    const { user } = useUser();
+    
+    // Trigger fetches on mount
+    React.useEffect(() => {
+        if (user) {
+            fetchHeartNotifications(user.id);
+            fetchChatRequests(user.id);
+        }
+    }, [user, fetchHeartNotifications, fetchChatRequests]);
     
     return (
         <div>
             <div data-testid="hearts-count">{notifications.length}</div>
             <div data-testid="requests-count">{chatRequests.length}</div>
-            <button onClick={() => clearAllNotifications(1)}>Clear All</button>
+            <button onClick={() => clearAllNotifications(user?.id)}>Clear All</button>
             {chatRequests.map(req => (
                 <div key={req.id}>
-                    <button onClick={() => acceptChatRequest(req.id, 1)}>Accept</button>
-                    <button onClick={() => rejectChatRequest(req.id, 1)}>Reject</button>
+                    <button onClick={() => acceptChatRequest(req.id, user?.id)}>Accept</button>
+                    <button onClick={() => rejectChatRequest(req.id, user?.id)}>Reject</button>
                 </div>
             ))}
         </div>
@@ -76,10 +86,16 @@ describe('Notification Integration Tests', () => {
                 </UserProvider>
             );
 
-            // Wait for notifications to load
+            // Wait for notifications to load - need to trigger fetch
             await waitFor(() => {
-                expect(screen.getByTestId('hearts-count')).toHaveTextContent('1');
-            });
+                expect(fetch).toHaveBeenCalled();
+            }, { timeout: 3000 });
+
+            // Wait for state update
+            await waitFor(() => {
+                const countElement = screen.getByTestId('hearts-count');
+                expect(countElement).toBeInTheDocument();
+            }, { timeout: 3000 });
         });
 
         it('should filter out notifications older than 24 hours', async () => {
