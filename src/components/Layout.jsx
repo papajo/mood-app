@@ -1,5 +1,6 @@
 import React from 'react';
 import { User } from 'lucide-react';
+import NotificationButton from './NotificationButton';
 
 const Layout = ({ children, onProfileClick }) => {
     return (
@@ -13,15 +14,18 @@ const Layout = ({ children, onProfileClick }) => {
                     <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                         MoodMingle
                     </h1>
-                    {onProfileClick && (
-                        <button
-                            onClick={onProfileClick}
-                            className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-secondary flex items-center justify-center hover:scale-110 transition-transform"
-                            title="Profile"
-                        >
-                            <User size={16} className="text-white" />
-                        </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        <NotificationButton />
+                        {onProfileClick && (
+                            <button
+                                onClick={onProfileClick}
+                                className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-secondary flex items-center justify-center hover:scale-110 transition-transform"
+                                title="Profile"
+                            >
+                                <User size={16} className="text-white" />
+                            </button>
+                        )}
+                    </div>
                 </header>
                 {children}
             </main>

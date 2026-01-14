@@ -107,6 +107,9 @@ const VibeRoom = ({ currentMood }) => {
         socket.on('user_typing', handleUserTyping);
         socket.on('user_stopped_typing', handleUserStoppedTyping);
 
+        // Make socket globally available for notification listeners
+        window.socket = socket;
+
         return () => {
             if (socketRef.current) {
                 socketRef.current.off('receive_message', handleReceiveMessage);
@@ -114,6 +117,7 @@ const VibeRoom = ({ currentMood }) => {
                 socketRef.current.off('user_stopped_typing', handleUserStoppedTyping);
             }
             setTypingUsers(new Set());
+            window.socket = null;
         };
     }, [currentMood, user]);
 

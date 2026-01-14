@@ -9,16 +9,19 @@ import UserProfile from './components/UserProfile';
 import { Users, MessageSquare, Sparkles, BookOpen } from 'lucide-react';
 import { findMoodById } from './constants/moods';
 import { UserProvider, useUser } from './contexts/UserContext';
+import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
+import NotificationButton from './components/NotificationButton';
 import { API_URL } from './config/api';
 
 function AppContent() {
     const { user, loading: userLoading } = useUser();
+    const { fetchHeartNotifications, fetchChatRequests } = useNotifications();
     const [currentMood, setCurrentMood] = useState(null);
     const [activeTab, setActiveTab] = useState('feed');
     const [moodLoading, setMoodLoading] = useState(true);
     const [showProfile, setShowProfile] = useState(false);
 
-    // Fetch initial mood from server
+    // Fetch initial mood from server and notifications
     useEffect(() => {
         if (!user) {
             console.log('No user found, skipping mood fetch');
@@ -27,6 +30,10 @@ function AppContent() {
 
         console.log('Fetching mood for user:', user.id);
         setMoodLoading(true);
+        
+        // Fetch notifications when user is loaded
+        fetchHeartNotifications(user.id);
+        fetchChatRequests(user.id);
         
         const timeout = setTimeout(() => {
             console.log('Mood fetch timeout - setting loading to false');
@@ -165,7 +172,9 @@ function AppContent() {
 function App() {
     return (
         <UserProvider>
-            <AppContent />
+            <NotificationProvider>
+                <AppContent />
+            </NotificationProvider>
         </UserProvider>
     );
 }

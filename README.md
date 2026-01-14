@@ -298,6 +298,22 @@ socket.on('receive_message', (data) => {
 - Personal reflection space
 - Entry history
 
+## 📱 Testing on iPhone
+
+**Quick Start:**
+```bash
+npm run ios:open
+```
+
+Then in Xcode:
+1. Select your iPhone from device dropdown
+2. Click Play button (▶️)
+3. Trust developer on iPhone if prompted
+
+**For detailed instructions:** See [IOS_TESTING_GUIDE.md](./IOS_TESTING_GUIDE.md)
+
+**Quick Reference:** See [QUICK_IOS_TEST.md](./QUICK_IOS_TEST.md)
+
 ## 🧪 Development
 
 ### Code Quality

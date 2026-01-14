@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, Heart, Loader2 } from 'lucide-react';
+import { MessageCircle, Heart, Loader2, Check } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { API_URL } from '../config/api';
 
@@ -10,6 +10,8 @@ const MatchFeed = ({ currentMood }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [likedUsers, setLikedUsers] = useState(new Set());
+    const [sendingHeart, setSendingHeart] = useState(new Set());
+    const [privateChatRequests, setPrivateChatRequests] = useState(new Map()); // userId -> 'pending', 'accepted', 'rejected'
 
     // Fetch matching users when mood changes
     useEffect(() => {
@@ -38,15 +40,95 @@ const MatchFeed = ({ currentMood }) => {
             });
     }, [currentMood, user]);
 
-    const toggleLike = (e, userId) => {
-        e.stopPropagation(); // Prevent triggering the card click
-        const newLiked = new Set(likedUsers);
-        if (newLiked.has(userId)) {
-            newLiked.delete(userId);
-        } else {
-            newLiked.add(userId);
+    const sendHeartNotification = async (e, targetUserId) => {
+        e.stopPropagation(); // Prevent triggering card click
+        
+        if (!user) {
+            console.error('No user found');
+            return;
         }
-        setLikedUsers(newLiked);
+
+        setSendingHeart(prev => new Set(prev).add(targetUserId));
+
+        try {
+            const response = await fetch(`${API_URL}/api/heart`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    senderId: user.id, 
+                    receiverId: targetUserId 
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            console.log('Heart sent successfully:', result);
+            
+            // Add to liked users
+            setLikedUsers(prev => new Set(prev).add(targetUserId));
+        } catch (err) {
+            console.error('Failed to send heart:', err);
+            // You could show a toast notification here
+        } finally {
+            setSendingHeart(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(targetUserId);
+                return newSet;
+            });
+        }
+    };
+
+    const requestPrivateChat = async (e, targetUser) => {
+        e.stopPropagation(); // Prevent triggering card click
+        
+        if (!user) {
+            console.error('No user found');
+            return;
+        }
+
+        try {
+            console.log('Sending private chat request:', {
+                requesterId: user.id, 
+                requestedId: targetUser.id,
+                user: user,
+                targetUser: targetUser
+            });
+            
+            const response = await fetch(`${API_URL}/api/private-chat/request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    requesterId: parseInt(user.id), 
+                    requestedId: parseInt(targetUser.id) 
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            console.log('Private chat request sent:', result);
+            
+            if (result.status === 'existing') {
+                // Room already exists, you could navigate to the chat
+                console.log('Private chat room already exists:', result.roomId);
+            } else {
+                // Set request status to pending
+                setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'pending'));
+                
+                // Show notification that request was sent
+                console.log(`Private chat request sent to ${targetUser.name}`);
+            }
+        } catch (err) {
+            console.error('Failed to request private chat:', err);
+            if (err.message.includes('already pending')) {
+                setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'pending'));
+            }
+        }
     };
 
     const handleChat = (e, _userName) => {
@@ -107,16 +189,34 @@ const MatchFeed = ({ currentMood }) => {
                                     </div>
                                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity mt-4 z-20">
                                         <button
-                                            onClick={(e) => toggleLike(e, matchUser.id)}
-                                            className={`p-2 rounded-full transition-colors ${likedUsers.has(matchUser.id) ? 'bg-secondary text-white' : 'bg-white/10 hover:bg-primary/50 text-white'}`}
+                                            onClick={(e) => sendHeartNotification(e, matchUser.id)}
+                                            disabled={sendingHeart.has(matchUser.id)}
+                                            className={`p-2 rounded-full transition-all ${
+                                                likedUsers.has(matchUser.id) 
+                                                    ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white' 
+                                                    : 'bg-white/10 hover:bg-pink-500/50 text-white'
+                                            } ${sendingHeart.has(matchUser.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
-                                            <Heart size={18} fill={likedUsers.has(matchUser.id) ? "currentColor" : "none"} />
+                                            <Heart 
+                                                size={18} 
+                                                fill={likedUsers.has(matchUser.id) ? "currentColor" : "none"}
+                                                className={sendingHeart.has(matchUser.id) ? 'animate-pulse' : ''}
+                                            />
                                         </button>
                                         <button
-                                            onClick={(e) => handleChat(e, matchUser.name)}
-                                            className="p-2 rounded-full bg-white/10 hover:bg-accent/50 text-white transition-colors"
+                                            onClick={(e) => requestPrivateChat(e, matchUser)}
+                                            disabled={privateChatRequests.get(matchUser.id) === 'pending'}
+                                            className={`p-2 rounded-full transition-all ${
+                                                privateChatRequests.get(matchUser.id) === 'pending'
+                                                    ? 'bg-yellow-500/50 text-white cursor-not-allowed'
+                                                    : 'bg-white/10 hover:bg-blue-500/50 text-white'
+                                            }`}
                                         >
-                                            <MessageCircle size={18} />
+                                            {privateChatRequests.get(matchUser.id) === 'pending' ? (
+                                                <Loader2 size={18} className="animate-spin" />
+                                            ) : (
+                                                <MessageCircle size={18} />
+                                            )}
                                         </button>
                                     </div>
                                 </motion.div>

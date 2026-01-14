@@ -1,16 +1,23 @@
 {
   "name": "mood-mingle",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint src --max-warnings 0",
     "preview": "vite preview",
-    "test": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:all": "./scripts/run-all-tests.sh",
+    "ios:setup": "./scripts/setup-ios-testing.sh",
+    "ios:open": "npm run build && npx cap sync ios && npx cap open ios",
+    "test:pwa": "./scripts/test-pwa-iphone.sh",
+    "servers:restart": "./scripts/restart-servers.sh",
+    "servers:stop": "pkill -f vite && pkill -f 'node.*server/index.js'"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
@@ -41,7 +48,9 @@
     "jsdom": "^27.2.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
+    "terser": "^5.44.1",
     "vite": "^7.2.4",
+    "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.14"
   }
 }

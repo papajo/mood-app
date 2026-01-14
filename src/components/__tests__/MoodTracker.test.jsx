@@ -22,14 +22,17 @@ describe('MoodTracker', () => {
         expect(screen.getByRole('heading')).toBeInTheDocument();
     });
 
-    it('should call onMoodChange when a mood is clicked', () => {
+    it('should call onMoodChange when a mood is clicked', async () => {
         const handleMoodChange = vi.fn();
         render(<MoodTracker currentMood={null} onMoodChange={handleMoodChange} />);
 
         const firstMood = moods[0];
-        const moodButton = screen.getByText(firstMood.emoji).closest('button');
+        const moodButton = screen.getByText(firstMood.label).closest('button');
 
         fireEvent.click(moodButton);
+
+        // Wait a tick for async operations
+        await new Promise(resolve => setTimeout(resolve, 0));
 
         expect(handleMoodChange).toHaveBeenCalledTimes(1);
         expect(handleMoodChange).toHaveBeenCalledWith(firstMood);
@@ -68,20 +71,23 @@ describe('MoodTracker', () => {
         });
     });
 
-    it('should call onMoodChange with correct mood data for each mood', () => {
+    it('should call onMoodChange with correct mood data for each mood', async () => {
         render(<MoodTracker currentMood={null} onMoodChange={mockOnMoodChange} />);
 
         // Test each mood click one at a time
-        moods.forEach((mood, index) => {
+        for (const mood of moods) {
             mockOnMoodChange.mockClear();
             
-            // Find button by emoji since it's more specific
-            const button = screen.getByText(mood.emoji).closest('button');
+            // Find button by label since it's more unique in this context
+            const button = screen.getByText(mood.label).closest('button');
             fireEvent.click(button);
+
+            // Wait a tick for async operations
+            await new Promise(resolve => setTimeout(resolve, 0));
 
             expect(mockOnMoodChange).toHaveBeenCalledTimes(1);
             expect(mockOnMoodChange).toHaveBeenCalledWith(mood);
-        });
+        }
     });
 
     it('should have correct structure and CSS classes', () => {
