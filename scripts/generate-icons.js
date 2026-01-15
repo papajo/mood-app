@@ -3,7 +3,7 @@
 /**
  * Icon Generation Script
  * 
- * This script helps generate app icons for MoodMingle.
+ * This script helps generate app icons for MoodApp.
  * For production, you should use a design tool to create proper icons.
  * 
  * For now, this creates placeholder instructions.

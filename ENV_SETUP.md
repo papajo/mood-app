@@ -1,6 +1,6 @@
 # Environment Configuration
 
-This document describes how to configure environment variables for MoodMingle.
+This document describes how to configure environment variables for MoodApp.
 
 ## Frontend Configuration
 
@@ -49,14 +49,14 @@ PORT=3002
 FRONTEND_URL=http://localhost:5174
 
 # Database Path
-DB_PATH=./moodmingle.db
+DB_PATH=./moodapp.db
 ```
 
 ### Available Variables
 
 - `PORT` - The port the server will listen on (default: `3002`)
 - `FRONTEND_URL` - The frontend URL for CORS configuration (default: `http://localhost:5174`)
-- `DB_PATH` - Path to the SQLite database file (default: `./moodmingle.db`)
+- `DB_PATH` - Path to the SQLite database file (default: `./moodapp.db`)
 
 ## Development vs Production
 

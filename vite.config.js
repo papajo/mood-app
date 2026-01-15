@@ -15,8 +15,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/*.png'],
       manifest: {
-        name: 'MoodMingle',
-        short_name: 'MoodMingle',
+        name: 'MoodApp',
+        short_name: 'MoodApp',
         description: 'Connect with others who share your current mood',
         theme_color: '#8b5cf6',
         background_color: '#0f172a',

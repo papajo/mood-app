@@ -1,4 +1,4 @@
-// MoodMingle User Switcher - Testing Helper
+// MoodApp User Switcher - Testing Helper
 // Copy and paste this into your browser console on http://localhost:5174
 
 const users = [

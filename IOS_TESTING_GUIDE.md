@@ -1,4 +1,4 @@
-# 📱 Testing MoodMingle on iPhone Device
+# 📱 Testing MoodApp on iPhone Device
 
 ## Prerequisites
 
@@ -118,7 +118,7 @@ npx cap open ios
 1. On your iPhone, install **TestFlight** app from App Store
 2. Open TestFlight
 3. Accept invitation email (if external tester)
-4. Tap **Install** next to MoodMingle
+4. Tap **Install** next to MoodApp
 5. App installs and can be launched
 
 ## Method 3: Wireless Testing (iOS 9+)

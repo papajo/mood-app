@@ -165,7 +165,7 @@ location.reload();
 4. **Select same mood**: All enter Happy Room together  
 5. **Experience magic**: Real-time mood-based social connection!
 
-**The complete MoodMingle Rooms feature is now ready for your comprehensive testing!** 🎭✨
+**The complete MoodApp Rooms feature is now ready for your comprehensive testing!** 🎭✨
 
 ---
 

@@ -1,8 +1,8 @@
-# Testing Guide for MoodMingle
+# Testing Guide for MoodApp
 
 ## 🧪 Test Suite Overview
 
-MoodMingle includes comprehensive automated testing for:
+MoodApp includes comprehensive automated testing for:
 - Unit tests (components, utilities)
 - Integration tests (user flows, API interactions)
 - E2E test scripts (API endpoints)

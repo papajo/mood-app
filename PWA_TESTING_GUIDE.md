@@ -1,4 +1,4 @@
-# 📱 Testing MoodMingle as PWA on iPhone (No Xcode Needed!)
+# 📱 Testing MoodApp as PWA on iPhone (No Xcode Needed!)
 
 ## Why PWA Testing?
 
@@ -42,7 +42,7 @@ npm run test:pwa
 
 ### Step 4: Launch App
 
-- Tap the **MoodMingle icon** on your home screen
+- Tap the **MoodApp icon** on your home screen
 - App opens in full screen (no Safari UI)
 - Works like a native app!
 

@@ -1,8 +1,8 @@
-# MoodMingle 🌈
+# MoodApp 🌈
 
 A social mood-matching application that connects people based on their current emotional state. Share your vibe, find your tribe, and connect with others who are feeling the same way.
 
-![MoodMingle](https://img.shields.io/badge/version-1.0.0-blue)
+![MoodApp](https://img.shields.io/badge/version-1.0.0-blue)
 ![React](https://img.shields.io/badge/React-18.2.0-61DAFB)
 ![Node](https://img.shields.io/badge/Node-18+-339933)
 
@@ -43,7 +43,7 @@ A social mood-matching application that connects people based on their current e
 
 ```bash
 git clone <repository-url>
-cd MoodMingle
+cd MoodApp
 ```
 
 ### 2. Install Frontend Dependencies
@@ -79,7 +79,7 @@ See [ENV_SETUP.md](./ENV_SETUP.md) for detailed environment variable configurati
    ```env
    PORT=3002
    FRONTEND_URL=http://localhost:5174
-   DB_PATH=./moodmingle.db
+   DB_PATH=./moodapp.db
    ```
 
 ## 🏃 Running the Application
@@ -123,11 +123,11 @@ npm start
 ## 📁 Project Structure
 
 ```
-MoodMingle/
+MoodApp/
 ├── server/                 # Backend server
 │   ├── index.js           # Express server & API routes
 │   ├── package.json       # Server dependencies
-│   └── moodmingle.db      # SQLite database (auto-created)
+│   └── moodapp.db      # SQLite database (auto-created)
 ├── src/                    # Frontend source
 │   ├── components/        # React components
 │   │   ├── Journal.jsx
@@ -345,7 +345,7 @@ Test files are located in:
 
 ### Database
 
-The SQLite database (`moodmingle.db`) is automatically created on first server start. Tables include:
+The SQLite database (`moodapp.db`) is automatically created on first server start. Tables include:
 - `users` - User accounts
 - `mood_logs` - Mood history
 - `journal_entries` - Journal entries
@@ -373,7 +373,7 @@ The SQLite database (`moodmingle.db`) is automatically created on first server s
 - Verify network/firewall settings
 
 ### Database errors
-- Delete `moodmingle.db` to reset database
+- Delete `moodapp.db` to reset database
 - Check file permissions
 - Verify SQLite3 is installed
 

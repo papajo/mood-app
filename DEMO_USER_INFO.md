@@ -4,13 +4,13 @@ A demo user has been created for easy testing of the authentication system.
 
 ## Login Credentials
 
-- **Email**: `demo@moodmingle.com`
+- **Email**: `demo@moodapp.com`
 - **Password**: `demo123`
 - **Username**: `demo`
 
 ## How to Use
 
-1. Open the MoodMingle app
+1. Open the MoodApp app
 2. You'll see the login screen
 3. Enter the demo credentials above
 4. Click "Sign In"

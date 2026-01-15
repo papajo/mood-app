@@ -41,6 +41,6 @@ If you see this error when trying to log in:
 ## Demo Account
 
 For quick testing, use the demo account:
-- **Email**: `demo@moodmingle.com`
+- **Email**: `demo@moodapp.com`
 - **Password**: `demo123`
 - **Username**: `demo`

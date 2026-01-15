@@ -1,8 +1,8 @@
 ---
-description: Run the MoodMingle application on Mobile (iOS/Android)
+description: Run the MoodApp application on Mobile (iOS/Android)
 ---
 
-To run MoodMingle on a mobile simulator or device:
+To run MoodApp on a mobile simulator or device:
 
 1.  **Build the Web App**
     ```bash

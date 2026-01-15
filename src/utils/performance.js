@@ -1,5 +1,5 @@
 /**
- * Performance utilities for MoodMingle
+ * Performance utilities for MoodApp
  */
 
 // Lazy load images

@@ -15,7 +15,7 @@
 pkill -f node
 
 # Clean database
-cd server && rm -f moodmingle.db
+cd server && rm -f moodapp.db
 
 # Start fresh backend  
 cd server && node index.js &
@@ -183,4 +183,4 @@ When everything works correctly, you should see:
 - Message history ✅
 ```
 
-**🎉 The complete MoodMingle Rooms experience is ready!**
+**🎉 The complete MoodApp Rooms experience is ready!**

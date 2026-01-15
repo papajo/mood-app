@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Comprehensive Test Runner for MoodMingle
+# Comprehensive Test Runner for MoodApp
 # Runs all test suites and generates reports
 
-echo "🧪 MoodMingle Test Suite Runner"
+echo "🧪 MoodApp Test Suite Runner"
 echo "================================"
 echo ""
 

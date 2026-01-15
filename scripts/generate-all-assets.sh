@@ -3,7 +3,7 @@
 # Generate all app icons and splash screens
 # Requires ImageMagick: brew install imagemagick (Mac) or apt-get install imagemagick (Linux)
 
-echo "🎨 Generating MoodMingle App Assets"
+echo "🎨 Generating MoodApp App Assets"
 echo "===================================="
 
 ICONS_DIR="public/icons"
@@ -95,7 +95,7 @@ cat > "$SPLASH_SVG" << 'EOF'
   <text x="1024" y="1080" font-size="300" text-anchor="middle" fill="white">😊</text>
   
   <!-- App Name -->
-  <text x="1024" y="1400" font-size="120" font-weight="bold" text-anchor="middle" fill="white" font-family="system-ui">MoodMingle</text>
+  <text x="1024" y="1400" font-size="120" font-weight="bold" text-anchor="middle" fill="white" font-family="system-ui">MoodApp</text>
   <text x="1024" y="1500" font-size="60" text-anchor="middle" fill="#94a3b8" font-family="system-ui">Connect Through Moods</text>
 </svg>
 EOF

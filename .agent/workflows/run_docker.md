@@ -1,8 +1,8 @@
 ---
-description: Run the MoodMingle application with Docker (Production/Dev Hybrid)
+description: Run the MoodApp application with Docker (Production/Dev Hybrid)
 ---
 
-To run MoodMingle with a Persistent PostgreSQL database, use Docker Compose.
+To run MoodApp with a Persistent PostgreSQL database, use Docker Compose.
 
 1. **Stop any running servers**
    Ensure you don't have the local node servers running on ports 3002 or 5174.

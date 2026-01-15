@@ -1,8 +1,8 @@
 ---
-description: Run the MoodMingle application locally
+description: Run the MoodApp application locally
 ---
 
-To run MoodMingle locally, you need to start both the frontend and backend servers.
+To run MoodApp locally, you need to start both the frontend and backend servers.
 
 1. **Start the Backend Server**
    Open a terminal and run:
@@ -24,4 +24,4 @@ To run MoodMingle locally, you need to start both the frontend and backend serve
 3. **Access the App**
    Open your browser and navigate to http://localhost:5174.
 
-**Note:** The backend uses a local SQLite database file `moodmingle.db` in the `server` directory, which is created automatically if it doesn't exist.
+**Note:** The backend uses a local SQLite database file `moodapp.db` in the `server` directory, which is created automatically if it doesn't exist.

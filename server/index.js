@@ -190,7 +190,7 @@ export const initializeDatabaseTables = async () => {
         console.log('Initializing SQLite database...');
         
         // Remove existing database file for clean start (manual)
-        console.log('Note: Remove moodmingle.db manually for clean database');
+        console.log('Note: Remove moodapp.db manually for clean database');
         
         await initializeDatabase();
 

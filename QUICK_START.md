@@ -8,7 +8,7 @@ The servers should now be running! Here's how to access and test the app:
 
 1. **Frontend (React App)**
    - Open your browser and navigate to: **http://localhost:5174**
-   - This is the main MoodMingle application
+   - This is the main MoodApp application
 
 2. **Backend API**
    - API server is running on: **http://localhost:3002**
@@ -100,7 +100,7 @@ npm run dev
 
 **If database errors:**
 - The database is created automatically on first run
-- If issues persist, delete `server/moodmingle.db` to reset
+- If issues persist, delete `server/moodapp.db` to reset
 
 ### Stopping the Servers
 
@@ -113,5 +113,5 @@ lsof -ti:5174 | xargs kill -9
 
 ---
 
-**Enjoy testing MoodMingle!** 🎉
+**Enjoy testing MoodApp!** 🎉
 

@@ -1,8 +1,8 @@
-# MoodMingle - Execution & Completion Plan
+# MoodApp - Execution & Completion Plan
 
 ## 📋 Project Overview
 
-**MoodMingle** is a social mood-matching application built with React (Vite) frontend and Express.js backend with SQLite database. The app allows users to:
+**MoodApp** is a social mood-matching application built with React (Vite) frontend and Express.js backend with SQLite database. The app allows users to:
 - Track their current mood
 - Match with others sharing similar moods
 - Chat in mood-based "Vibe Rooms"
@@ -297,7 +297,7 @@ npm run dev
 
 ## 📝 Notes
 
-- **Database**: SQLite file (`moodmingle.db`) is created automatically
+- **Database**: SQLite file (`moodapp.db`) is created automatically
 - **Ports**: Frontend (5174), Backend (3002)
 - **Real-time**: Socket.io configured but dependency missing
 - **Styling**: Tailwind CSS with custom glassmorphism utilities

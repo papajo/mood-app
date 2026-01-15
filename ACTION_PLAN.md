@@ -58,8 +58,8 @@
 #### Morning (2-3 hours)
 5. **Update Legal Documents**
    - Open `public/legal/privacy-policy.html`
-   - Replace `privacy@moodmingle.app` with your email
-   - Replace `legal@moodmingle.app` with your email
+   - Replace `privacy@moodapp.app` with your email
+   - Replace `legal@moodapp.app` with your email
    - Update `[Your Jurisdiction]` in Terms of Service
    - Host both files on your domain
 

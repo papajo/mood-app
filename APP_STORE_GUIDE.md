@@ -16,8 +16,8 @@
 - [ ] Test splash screen appearance
 
 #### 3. App Information
-- [ ] App Name: "MoodMingle"
-- [ ] Bundle ID: `com.moodmingle.app` (update in Xcode if needed)
+- [ ] App Name: "MoodApp"
+- [ ] Bundle ID: `com.moodapp.app` (update in Xcode if needed)
 - [ ] Version: Update in `package.json` and `ios/App/App/Info.plist`
 - [ ] Build Number: Increment for each submission
 
@@ -60,7 +60,7 @@ npx cap open ios
 - [ ] Update splash screen resources
 
 #### 3. App Information
-- [ ] Package Name: `com.moodmingle.app`
+- [ ] Package Name: `com.moodapp.app`
 - [ ] Version Code: Increment in `android/app/build.gradle`
 - [ ] Version Name: Update in `android/app/build.gradle`
 
@@ -97,9 +97,9 @@ npx cap open android
 ### App Description Template
 
 ```
-MoodMingle - Connect Through Your Emotions
+MoodApp - Connect Through Your Emotions
 
-Find your tribe based on how you're feeling right now. MoodMingle is a social app that connects people through shared emotional states.
+Find your tribe based on how you're feeling right now. MoodApp is a social app that connects people through shared emotional states.
 
 ✨ Features:
 • Express your current mood with 5 beautiful options

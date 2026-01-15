@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 
 describe('API Integration Tests', () => {
     let testDb;
-    const testDbPath = path.join(__dirname, '../test-moodmingle.db');
+    const testDbPath = path.join(__dirname, '../test-moodapp.db');
 
     beforeAll(() => {
         // Setup test database

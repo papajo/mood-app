@@ -1,6 +1,6 @@
 {
-  "appId": "com.moodmingle.app",
-  "appName": "MoodMingle",
+  "appId": "com.moodapp.app",
+  "appName": "MoodApp",
   "webDir": "dist",
   "server": {
     "androidScheme": "https",

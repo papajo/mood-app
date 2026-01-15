@@ -1,4 +1,4 @@
-package com.moodmingle.app;
+package com.moodapp.app;
 
 import com.getcapacitor.BridgeActivity;
 

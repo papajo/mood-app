@@ -30,6 +30,30 @@ Added comprehensive logging to track:
    - `"Emitting chat request notification to user X"` - confirms emission
    - `"Fetched X pending chat requests for user Y"` - confirms API call
 
+## System Message TTL / Mobile Notes
+
+### Symptoms
+- System message ("sent you a chat request" / "accepted your chat request") reappears after it should expire.
+- Mobile shows a stale timestamp (ex: `2:41 PM`) for system messages.
+
+### Root Cause
+- Some mobile browsers fail to parse SQLite timestamps (`YYYY-MM-DD HH:MM:SS`).
+- Expired system messages can linger in client state or be re-fetched from the server.
+
+### Fix Summary
+- Server filters expired system messages before returning `/api/messages/:roomId` and `/api/messages/undelivered/:userId`.
+- Client filters and removes expired system messages on every merge and before caching.
+- Timestamp parsing now normalizes SQLite format to ISO.
+
+### Debug Flags
+- Enable overlay: `localStorage.setItem('MM_DEBUG', '1')` then refresh.
+- Disable overlay: `localStorage.removeItem('MM_DEBUG')` then refresh.
+
+### Verification Checklist
+1. System messages auto-expire after ~2 minutes.
+2. Refreshing does not bring expired system messages back.
+3. Mobile and desktop both show consistent behavior.
+
 ## Common Issues
 
 1. **Socket not registered**: Check if `register_user` event is being sent

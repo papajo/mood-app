@@ -12,7 +12,7 @@ const Layout = ({ children, onProfileClick }) => {
             <main className="w-full max-w-md z-10 flex flex-col gap-6 relative">
                 <header className="flex items-center justify-between mb-4">
                     <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                        MoodMingle
+                        MoodApp
                     </h1>
                     <div className="flex items-center gap-2">
                         <NotificationButton />

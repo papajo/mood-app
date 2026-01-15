@@ -1,7 +1,7 @@
-// 🧪 MoodMingle Feature Testing Script
+// 🧪 MoodApp Feature Testing Script
 // Run this in browser console to test heart notifications and private chat
 
-console.log('🎯 Starting MoodMingle Feature Tests...');
+console.log('🎯 Starting MoodApp Feature Tests...');
 console.log('📋 Make sure you have two users in different browser tabs!');
 console.log('💡 Use switchUser(1) and switchUser(2) to set up test users');
 
@@ -148,7 +148,7 @@ async function testInteractiveFeatures() {
 }
 
 // Main test runner
-window.testMoodMingleFeatures = async function() {
+window.testMoodAppFeatures = async function() {
     console.clear();
     console.log('🚀 MOODMINGLE FEATURE TESTING STARTED 🚀');
     console.log('=====================================');
@@ -171,8 +171,8 @@ window.testMoodMingleFeatures = async function() {
 };
 
 // Auto-run tests
-console.log('🎯 Ready to test! Run testMoodMingleFeatures() in console to start.');
-console.log('💡 Quick test: testMoodMingleFeatures()');
+console.log('🎯 Ready to test! Run testMoodAppFeatures() in console to start.');
+console.log('💡 Quick test: testMoodAppFeatures()');
 
 // Monitor socket events
 if (window.socket) {

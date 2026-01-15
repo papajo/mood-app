@@ -31,7 +31,7 @@ npm install -g pm2
 
 # Start server with PM2
 cd server
-pm2 start index.js --name moodmingle-api
+pm2 start index.js --name moodapp-api
 
 # Save PM2 configuration
 pm2 save
@@ -42,15 +42,15 @@ pm2 startup
 
 ```bash
 # Build Docker image
-docker build -t moodmingle-server -f server/Dockerfile server/
+docker build -t moodapp-server -f server/Dockerfile server/
 
 # Run container
 docker run -d \
   -p 3002:3002 \
-  -v $(pwd)/server/moodmingle.db:/app/moodmingle.db \
+  -v $(pwd)/server/moodapp.db:/app/moodapp.db \
   -e PORT=3002 \
   -e FRONTEND_URL=https://yourdomain.com \
-  moodmingle-server
+  moodapp-server
 ```
 
 #### Option C: Using docker-compose
@@ -75,7 +75,7 @@ server {
     listen 80;
     server_name yourdomain.com;
 
-    root /path/to/moodmingle/dist;
+    root /path/to/moodapp/dist;
     index index.html;
 
     location / {
@@ -96,7 +96,7 @@ server {
 ```env
 PORT=3002
 FRONTEND_URL=https://yourdomain.com
-DB_PATH=./moodmingle.db
+DB_PATH=./moodapp.db
 NODE_ENV=production
 ```
 
@@ -110,10 +110,10 @@ VITE_SOCKET_URL=https://api.yourdomain.com
 
 ```bash
 # Backup SQLite database
-cp server/moodmingle.db server/moodmingle.db.backup
+cp server/moodapp.db server/moodapp.db.backup
 
 # Or use automated backups
-# Add to crontab: 0 2 * * * cp /path/to/moodmingle.db /backups/moodmingle-$(date +\%Y\%m\%d).db
+# Add to crontab: 0 2 * * * cp /path/to/moodapp.db /backups/moodapp-$(date +\%Y\%m\%d).db
 ```
 
 ### Step 6: SSL/HTTPS
@@ -140,10 +140,10 @@ app.get('/health', (req, res) => {
 
 ```bash
 # PM2 logs
-pm2 logs moodmingle-api
+pm2 logs moodapp-api
 
 # Docker logs
-docker logs moodmingle-server
+docker logs moodapp-server
 ```
 
 ## 📱 Mobile App Deployment

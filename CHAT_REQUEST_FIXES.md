@@ -30,7 +30,7 @@
    - Should see success message or error if something fails
 
 2. **Receive Chat Request:**
-   - Login as `demo` (demo@moodmingle.com / demo123)
+   - Login as `demo` (demo@moodapp.com / demo123)
    - Check notification bell - should see chat request from `testuser`
    - Request should appear in "Chat Requests" tab
 

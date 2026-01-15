@@ -82,7 +82,7 @@ npm run dev &
 
 When you open `http://192.168.254.150:5174` on iPhone:
 - Page should load (may take 10-20 seconds)
-- You should see the MoodMingle app
+- You should see the MoodApp app
 - If you see "Loading..." that's normal - wait for it
 - If you see errors, check browser console
 

@@ -42,7 +42,7 @@ describe('Layout Component', () => {
                 </NotificationProvider>
             </UserProvider>
         );
-        expect(screen.getByText('MoodMingle')).toBeInTheDocument();
+        expect(screen.getByText('MoodApp')).toBeInTheDocument();
     });
 
     it('renders profile button when onProfileClick is provided', () => {

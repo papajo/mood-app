@@ -587,7 +587,7 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
                     reason: 'Inappropriate content'
                 })
             });
-            alert('User reported. Thank you for keeping MoodMingle safe.');
+            alert('User reported. Thank you for keeping MoodApp safe.');
         } catch (e) {
             console.error('Report failed', e);
         }

@@ -1,4 +1,4 @@
-# 🎉 MoodMingle - App Store Ready Status
+# 🎉 MoodApp - App Store Ready Status
 
 ## ✅ Completed Features
 

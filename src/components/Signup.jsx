@@ -75,7 +75,7 @@ const Signup = ({ onSuccess, onSwitchToLogin }) => {
             className="glass-panel p-6 max-w-md w-full"
         >
             <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-white mb-2">Join MoodMingle</h2>
+                <h2 className="text-2xl font-bold text-white mb-2">Join MoodApp</h2>
                 <p className="text-gray-400 text-sm">Create your account to get started</p>
             </div>
 

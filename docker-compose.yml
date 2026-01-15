@@ -4,25 +4,25 @@ services:
   # Database Service
   db:
     image: postgres:15-alpine
-    container_name: moodmingle-db
+    container_name: moodapp-db
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: ${DB_NAME:-moodmingle}
+      POSTGRES_DB: ${DB_NAME:-moodapp}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     networks:
-      - moodmingle-network
+      - moodapp-network
 
   # Backend Service
   backend:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: moodmingle-backend
+    container_name: moodapp-backend
     restart: always
     environment:
       PORT: 3002
@@ -30,9 +30,9 @@ services:
       DB_PORT: 5432
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-password}
-      DB_NAME: ${DB_NAME:-moodmingle}
+      DB_NAME: ${DB_NAME:-moodapp}
       # Use the container name 'db' as hostname
-      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-moodmingle}
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-moodapp}
       FRONTEND_URL: http://localhost:5174
     command: npm run dev
     ports:
@@ -40,7 +40,7 @@ services:
     depends_on:
       - db
     networks:
-      - moodmingle-network
+      - moodapp-network
 
   # Frontend Service (Development mode for now, to keep HMR)
   # In a real PROD setup, we would build static files and serve with Nginx
@@ -48,7 +48,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: moodmingle-frontend
+    container_name: moodapp-frontend
     volumes:
       - ./:/app
       - /app/node_modules
@@ -60,12 +60,12 @@ services:
     depends_on:
       - backend
     networks:
-      - moodmingle-network
+      - moodapp-network
 
 volumes:
   postgres_data:
 
 
 networks:
-  moodmingle-network:
+  moodapp-network:
     driver: bridge

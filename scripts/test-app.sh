@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Comprehensive App Testing Script
-# Tests all major features of MoodMingle
+# Tests all major features of MoodApp
 
-echo "🧪 MoodMingle Comprehensive Test Suite"
+echo "🧪 MoodApp Comprehensive Test Suite"
 echo "======================================"
 echo ""
 

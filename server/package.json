@@ -1,7 +1,7 @@
 {
     "name": "mood-mingle-server",
     "version": "1.0.0",
-    "description": "Backend for MoodMingle",
+    "description": "Backend for MoodApp",
     "main": "index.js",
     "type": "module",
     "scripts": {

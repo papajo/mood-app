@@ -1,4 +1,4 @@
-# MoodMingle - Feature Testing Plan
+# MoodApp - Feature Testing Plan
 
 ## 🎯 Testing Status Legend
 - ✅ **Implemented & Tested**

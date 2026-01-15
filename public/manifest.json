@@ -1,6 +1,6 @@
 {
-  "name": "MoodMingle",
-  "short_name": "MoodMingle",
+  "name": "MoodApp",
+  "short_name": "MoodApp",
   "description": "Connect with others who share your current mood",
   "start_url": "/",
   "display": "standalone",

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Icon Creation Script for MoodMingle
+ * Icon Creation Script for MoodApp
  * 
  * This script creates a simple SVG-based icon and provides instructions
  * for generating PNG icons at all required sizes.
@@ -62,7 +62,7 @@ console.log('✅ Created icon template: icon-template.svg');
 const previewHTML = `<!DOCTYPE html>
 <html>
 <head>
-    <title>MoodMingle Icon Preview</title>
+    <title>MoodApp Icon Preview</title>
     <style>
         body {
             background: #0f172a;
@@ -95,7 +95,7 @@ const previewHTML = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <h1>MoodMingle Icon Preview</h1>
+    <h1>MoodApp Icon Preview</h1>
     <p>This is a template icon. For production, replace with your custom design.</p>
     
     <div class="icon-grid">

@@ -77,8 +77,8 @@ curl -X POST http://localhost:3002/api/private-chat/request \
 
 #### 5. Check Database:
 ```bash
-cd server && sqlite3 moodmingle.db "SELECT * FROM heart_notifications;"
-cd server && sqlite3 moodmingle.db "SELECT * FROM private_chat_requests;"
+cd server && sqlite3 moodapp.db "SELECT * FROM heart_notifications;"
+cd server && sqlite3 moodapp.db "SELECT * FROM private_chat_requests;"
 ```
 
 ## 🐛 Common Issues & Fixes

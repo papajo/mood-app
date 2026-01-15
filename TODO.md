@@ -1,4 +1,4 @@
-# MoodMingle Implementation & Testing Plan
+# MoodApp Implementation & Testing Plan
 
 ## Overview
 This document outlines the plan to implement and test all features mentioned in FEATURES.md, with git commits after each feature is verified.

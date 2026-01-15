@@ -7,7 +7,7 @@ async function createDemoUser() {
         await initializeDatabase();
         
         const username = 'demo';
-        const email = 'demo@moodmingle.com';
+        const email = 'demo@moodapp.com';
         const password = 'demo123';
         
         // Check if demo user already exists

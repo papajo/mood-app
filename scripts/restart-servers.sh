@@ -2,7 +2,7 @@
 
 # Quick script to restart both servers
 
-echo "🔄 Restarting MoodMingle Servers..."
+echo "🔄 Restarting MoodApp Servers..."
 echo ""
 
 # Kill existing processes
@@ -14,14 +14,14 @@ sleep 2
 # Start backend
 echo "Starting backend server..."
 cd server
-npm start > /tmp/moodmingle-server.log 2>&1 &
+npm start > /tmp/moodapp-server.log 2>&1 &
 BACKEND_PID=$!
 cd ..
 sleep 2
 
 # Start frontend
 echo "Starting frontend server..."
-npm run dev > /tmp/moodmingle-frontend.log 2>&1 &
+npm run dev > /tmp/moodapp-frontend.log 2>&1 &
 FRONTEND_PID=$!
 sleep 3
 
@@ -33,7 +33,7 @@ if lsof -i :3002 > /dev/null 2>&1; then
     echo "✅ Backend running on port 3002"
 else
     echo "❌ Backend failed to start"
-    echo "   Check: tail -f /tmp/moodmingle-server.log"
+    echo "   Check: tail -f /tmp/moodapp-server.log"
 fi
 
 if lsof -i :5174 > /dev/null 2>&1; then
@@ -46,7 +46,7 @@ if lsof -i :5174 > /dev/null 2>&1; then
     fi
 else
     echo "❌ Frontend failed to start"
-    echo "   Check: tail -f /tmp/moodmingle-frontend.log"
+    echo "   Check: tail -f /tmp/moodapp-frontend.log"
 fi
 
 echo ""

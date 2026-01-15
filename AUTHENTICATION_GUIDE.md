@@ -1,7 +1,7 @@
 # Authentication System Guide
 
 ## Overview
-MoodMingle now supports user authentication with email/password signup and login. Users can create accounts, sign in, and access all features securely.
+MoodApp now supports user authentication with email/password signup and login. Users can create accounts, sign in, and access all features securely.
 
 ## Features
 

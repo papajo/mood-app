@@ -122,7 +122,7 @@ const Login = ({ onSuccess, onSwitchToSignup }) => {
             <div className="mt-6 space-y-3">
                 <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-3 text-blue-200 text-xs">
                     <p className="font-semibold mb-1">Demo Account:</p>
-                    <p>Email: demo@moodmingle.com</p>
+                    <p>Email: demo@moodapp.com</p>
                     <p>Password: demo123</p>
                 </div>
                 <div className="text-center">

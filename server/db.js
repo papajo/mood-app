@@ -3,7 +3,7 @@ import { open } from 'sqlite';
 import 'dotenv/config';
 
 // Use DB_PATH from environment or default to local file
-const dbPath = process.env.DB_PATH || './moodmingle.db';
+const dbPath = process.env.DB_PATH || './moodapp.db';
 
 let db = null;
 
