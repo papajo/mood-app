@@ -11,7 +11,7 @@ echo ""
 echo "Checking if servers are running..."
 
 # Check backend
-if ! curl -s http://localhost:3001/health > /dev/null 2>&1; then
+if ! curl -s http://localhost:3002/health > /dev/null 2>&1; then
     echo "⚠️  Backend server not running"
     echo "   Starting backend server..."
     cd server
@@ -25,7 +25,7 @@ else
 fi
 
 # Check frontend
-if ! curl -s http://localhost:5173 > /dev/null 2>&1; then
+if ! curl -s http://localhost:5174 > /dev/null 2>&1; then
     echo "⚠️  Frontend server not running"
     echo "   Starting frontend server..."
     npm run dev > /tmp/moodmingle-frontend.log 2>&1 &
@@ -55,14 +55,14 @@ if [ -n "$IP" ]; then
     echo "📱 On your iPhone:"
     echo "   1. Make sure iPhone and Mac are on same WiFi network"
     echo "   2. Open Safari on iPhone"
-    echo "   3. Go to: http://$IP:5173"
+    echo "   3. Go to: http://$IP:5174"
     echo "   4. Tap Share button (square with arrow)"
     echo "   5. Tap 'Add to Home Screen'"
     echo "   6. App will install as PWA!"
     echo ""
     echo "🌐 Or scan this QR code (if you have qrencode):"
     if command -v qrencode &> /dev/null; then
-        qrencode -t ANSI "http://$IP:5173"
+        qrencode -t ANSI "http://$IP:5174"
     else
         echo "   Install qrencode for QR code: brew install qrencode"
     fi

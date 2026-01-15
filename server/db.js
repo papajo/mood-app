@@ -29,7 +29,8 @@ export const query = async (text, params = []) => {
         return { rows: [] };
     }
     
-    if (text.trim().startsWith('SELECT')) {
+    const trimmed = text.trim().toUpperCase();
+    if (trimmed.startsWith('SELECT') || trimmed.startsWith('PRAGMA')) {
         const rows = await database.all(text, params);
         return { rows };
     } else if (text.trim().startsWith('INSERT')) {

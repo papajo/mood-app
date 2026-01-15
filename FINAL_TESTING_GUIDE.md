@@ -14,7 +14,7 @@
 1. **Stop all servers**: `pkill -f node`
 2. **Start backend**: `cd server && node index.js &`
 3. **Start frontend**: `npm run dev`
-4. **Open**: http://localhost:5173
+4. **Open**: http://localhost:5174
 5. **Clear cache**: Hard refresh (Cmd+Shift+R)
 
 ### **Step 2: Test Users Available**
@@ -88,7 +88,7 @@ location.reload();
 
 #### **📱 Mobile Testing**
 1. **Find your IP**: `ifconfig | grep "inet "` (Mac/Linux)
-2. **From phone**: `http://YOUR_IP:5173`
+2. **From phone**: `http://YOUR_IP:5174`
 3. **Expected**: Full mobile functionality, touch optimization
 
 ---
@@ -161,7 +161,7 @@ The app now logs everything to help debug:
 - ✅ **One-handed use**: Reachable controls
 
 ### **Mobile Access Methods:**
-1. **Local Network**: `http://YOUR_COMPUTER_IP:5173`
+1. **Local Network**: `http://YOUR_COMPUTER_IP:5174`
 2. **Ngrok/Tunnel**: Share localhost securely
 3. **Docker**: Use provided Docker setup
 
@@ -203,7 +203,7 @@ The app now logs everything to help debug:
 ✅ **User Switcher**: Easy multi-user simulation  
 
 ### **🎯 Perfect Testing Path:**
-1. **Open**: http://localhost:5173
+1. **Open**: http://localhost:5174
 2. **Console**: Load user switcher script  
 3. **3+ tabs**: Switch to Luna, Cosmic, Thunder each
 4. **Select mood**: All join same Happy Room

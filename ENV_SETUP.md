@@ -13,15 +13,15 @@ The frontend uses Vite's environment variable system. Variables must be prefixed
 
 ```env
 # API Server URL
-VITE_API_URL=http://localhost:3001
+VITE_API_URL=http://localhost:3002
 
 # Socket.io Server URL (optional, defaults to VITE_API_URL)
-VITE_SOCKET_URL=http://localhost:3001
+VITE_SOCKET_URL=http://localhost:3002
 ```
 
 ### Available Variables
 
-- `VITE_API_URL` - The base URL for the API server (default: `http://localhost:3001`)
+- `VITE_API_URL` - The base URL for the API server (default: `http://localhost:3002`)
 - `VITE_SOCKET_URL` - The URL for Socket.io connections (defaults to `VITE_API_URL` if not set)
 
 ### Usage in Code
@@ -43,10 +43,10 @@ The backend uses `dotenv` to load environment variables from a `.env` file.
 
 ```env
 # Server Port
-PORT=3001
+PORT=3002
 
 # Frontend URL for CORS
-FRONTEND_URL=http://localhost:5173
+FRONTEND_URL=http://localhost:5174
 
 # Database Path
 DB_PATH=./moodmingle.db
@@ -54,16 +54,16 @@ DB_PATH=./moodmingle.db
 
 ### Available Variables
 
-- `PORT` - The port the server will listen on (default: `3001`)
-- `FRONTEND_URL` - The frontend URL for CORS configuration (default: `http://localhost:5173`)
+- `PORT` - The port the server will listen on (default: `3002`)
+- `FRONTEND_URL` - The frontend URL for CORS configuration (default: `http://localhost:5174`)
 - `DB_PATH` - Path to the SQLite database file (default: `./moodmingle.db`)
 
 ## Development vs Production
 
 ### Development
 - Use default values or local `.env` files
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:3001`
+- Frontend: `http://localhost:5174`
+- Backend: `http://localhost:3002`
 
 ### Production
 - Set environment variables in your hosting platform

@@ -179,8 +179,8 @@ cd server && npm test
 npm run lint
 
 # Start development servers
-npm run dev           # Frontend (port 5173)
-cd server && npm run dev  # Backend (port 3001)
+npm run dev           # Frontend (port 5174)
+cd server && npm run dev  # Backend (port 3002)
 ```
 
 ---

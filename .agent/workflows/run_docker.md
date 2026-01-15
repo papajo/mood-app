@@ -5,7 +5,7 @@ description: Run the MoodMingle application with Docker (Production/Dev Hybrid)
 To run MoodMingle with a Persistent PostgreSQL database, use Docker Compose.
 
 1. **Stop any running servers**
-   Ensure you don't have the local node servers running on ports 3001 or 5173.
+   Ensure you don't have the local node servers running on ports 3002 or 5174.
 
 2. **Start the Application**
    Run the following command in the project root:
@@ -14,8 +14,8 @@ To run MoodMingle with a Persistent PostgreSQL database, use Docker Compose.
    ```
 
 3. **Access the App**
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:3001
+   - Frontend: http://localhost:5174
+   - Backend API: http://localhost:3002
    - Database: Exposed on port 5432 (user: postgres, pass: password)
 
 4. **Shutdown**

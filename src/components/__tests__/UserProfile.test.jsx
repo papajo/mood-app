@@ -22,7 +22,7 @@ vi.mock('../../contexts/UserContext', () => ({
 }));
 
 vi.mock('../../config/api', () => ({
-  API_URL: 'http://localhost:3001'
+  API_URL: 'http://localhost:3002'
 }));
 
 global.fetch = vi.fn();
@@ -30,7 +30,7 @@ global.fetch = vi.fn();
 describe('UserProfile Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fetch.mockClear();
+    fetch.mockReset();
   });
 
   it('renders with user data', async () => {
@@ -120,6 +120,7 @@ describe('UserProfile Component', () => {
   });
 
   it('validates avatar URL format', async () => {
+    fetch.mockRejectedValueOnce(new Error('Failed to update profile'));
     render(<UserProfile onClose={() => { }} />);
     const editBtn = screen.getByRole('button', { name: /Edit Profile/ });
     fireEvent.click(editBtn);
@@ -130,7 +131,8 @@ describe('UserProfile Component', () => {
     const saveBtn = screen.getByRole('button', { name: /Save/ });
     fireEvent.click(saveBtn);
 
-    // Expect validation or fallback behavior if implemented.
-    // If not implemented, this test will help us identify gaps.
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to update profile/i)).toBeInTheDocument();
+    });
   });
 });

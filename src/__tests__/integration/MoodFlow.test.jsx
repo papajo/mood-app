@@ -32,41 +32,48 @@ describe('Mood Flow Integration', () => {
     });
 
     it('should allow user to select mood and see it saved', async () => {
-        // Setup user
-        localStorage.setItem('userId', '1');
-        localStorage.setItem('username', 'TestUser');
+        // Setup auth
+        localStorage.setItem('authToken', 'test-token');
 
         const user = userEvent.setup();
         
-        // Mock all API calls in order
-        // 1. User fetch
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({
-                id: 1,
-                username: 'TestUser',
-                avatar: null,
-                status: 'Test',
-                currentMoodId: null,
-            }),
-        });
-
-        // 2. Mood fetch (returns null if no mood set)
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => null,
-        });
-
-        // 3. Notifications fetch (hearts)
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => [],
-        });
-
-        // 4. Notifications fetch (chat requests)
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => [],
+        // Mock API calls using URL routing to avoid order coupling
+        fetch.mockImplementation(async (input, init) => {
+            const url = String(input);
+            if (url.includes('/api/auth/verify')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        user: {
+                            id: 1,
+                            username: 'TestUser',
+                            avatar: null,
+                            status: 'Test',
+                            currentMoodId: null,
+                        }
+                    })
+                };
+            }
+            if (url.includes('/api/mood/') && (!init || init.method !== 'POST')) {
+                return { ok: true, json: async () => null };
+            }
+            if (url.includes('/api/hearts/')) {
+                return { ok: true, json: async () => [] };
+            }
+            if (url.includes('/api/private-chat/requests/')) {
+                return { ok: true, json: async () => [] };
+            }
+            if (url.includes('/api/mood') && init?.method === 'POST') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        id: 1,
+                        userId: 1,
+                        moodId: 'happy',
+                    }),
+                };
+            }
+            return { ok: true, json: async () => ({}) };
         });
 
         render(
@@ -81,16 +88,6 @@ describe('Mood Flow Integration', () => {
         await waitFor(() => {
             expect(screen.getByText(/How's the energy/i)).toBeInTheDocument();
         }, { timeout: 5000 });
-
-        // Mock mood save (for when user clicks mood)
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({
-                id: 1,
-                userId: 1,
-                moodId: 'happy',
-            }),
-        });
 
         // Find and click the happy mood (😊)
         const moodButtons = screen.getAllByRole('button');

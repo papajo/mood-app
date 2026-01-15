@@ -1,5 +1,5 @@
 // MoodMingle User Switcher - Testing Helper
-// Copy and paste this into your browser console on http://localhost:5173
+// Copy and paste this into your browser console on http://localhost:5174
 
 const users = [
   { id: 1, username: 'Luna_Starlight', avatar: 'https://i.pravatar.cc/150?u=Luna_Starlight', mood: 'happy' },
@@ -13,7 +13,7 @@ const users = [
 // Verify users exist before allowing switching
 const verifyUsersExist = async () => {
   try {
-    const response = await fetch('http://localhost:3001/api/users/match/happy');
+    const response = await fetch('http://localhost:3002/api/users/match/happy');
     const users = await response.json();
     const userMap = {};
     
@@ -57,7 +57,7 @@ window.switchUser = async (userId) => {
   
   // Verify user exists on backend first
   try {
-    const response = await fetch(`http://localhost:3001/api/users/${userId}`);
+    const response = await fetch(`http://localhost:3002/api/users/${userId}`);
     if (!response.ok) {
       console.error('❌ User verification failed:', response.status);
       console.error('Response text:', await response.text());
@@ -160,7 +160,7 @@ switchUser(6);  // Switch to Chill_Vibes (Chill Room)
 
 📱 MOBILE TESTING TIPS:
 • Find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}'
-• Or use ngrok: ngrok http 5173
+• Or use ngrok: ngrok http 5174
 • If still fails, test on computer first!
 
 💡 TIP: Open multiple browser tabs and switch users in each tab to test multi-user chat!

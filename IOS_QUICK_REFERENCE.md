@@ -38,7 +38,7 @@ ifconfig | grep "inet " | grep -v 127.0.0.1
 ### Update API URL:
 ```bash
 # Create .env file
-echo "VITE_API_URL=http://192.168.1.100:3001" > .env
+echo "VITE_API_URL=http://192.168.1.100:3002" > .env
 
 # Rebuild
 npm run build
@@ -51,7 +51,7 @@ npx cap sync ios
 brew install ngrok
 
 # Expose server
-ngrok http 3001
+ngrok http 3002
 
 # Use the https URL in .env
 ```

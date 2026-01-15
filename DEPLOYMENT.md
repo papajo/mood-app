@@ -46,9 +46,9 @@ docker build -t moodmingle-server -f server/Dockerfile server/
 
 # Run container
 docker run -d \
-  -p 3001:3001 \
+  -p 3002:3002 \
   -v $(pwd)/server/moodmingle.db:/app/moodmingle.db \
-  -e PORT=3001 \
+  -e PORT=3002 \
   -e FRONTEND_URL=https://yourdomain.com \
   moodmingle-server
 ```
@@ -94,7 +94,7 @@ server {
 
 #### Backend (.env)
 ```env
-PORT=3001
+PORT=3002
 FRONTEND_URL=https://yourdomain.com
 DB_PATH=./moodmingle.db
 NODE_ENV=production

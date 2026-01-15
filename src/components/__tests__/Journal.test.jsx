@@ -9,7 +9,7 @@ vi.mock('../../contexts/UserContext', () => ({
 }));
 
 vi.mock('../../config/api', () => ({
-  API_URL: 'http://localhost:3001'
+  API_URL: 'http://localhost:3002'
 }));
 
 global.fetch = vi.fn();

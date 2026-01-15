@@ -42,5 +42,5 @@ Added comprehensive logging to track:
 1. Verify socket connection: `window.socket.connected` should be `true`
 2. Verify user registration: Check server logs for registration
 3. Verify event listener: Check if `private_chat_request_${userId}` listener is set up
-4. Test API directly: `curl http://localhost:3001/api/private-chat/requests/101`
+4. Test API directly: `curl http://localhost:3002/api/private-chat/requests/101`
 5. Check network tab: Verify socket events are being received

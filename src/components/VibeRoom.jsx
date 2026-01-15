@@ -16,7 +16,25 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
     const [otherUser, setOtherUser] = useState(null); // For private rooms
     const typingTimeoutRef = useRef(null);
     const messagesEndRef = useRef(null);
+    const messagesContainerRef = useRef(null);
     const socketRef = useRef(null);
+    const expirationTimeoutsRef = useRef(new Map());
+    const pendingMessagesRef = useRef(new Map());
+    const lastSyncAtRef = useRef(0);
+    const lastMessageAtRef = useRef(0);
+    const lastMessageIdRef = useRef(0);
+    const lastFullSyncAtRef = useRef(0);
+    const emptyDeltaCountRef = useRef(0);
+    const isAtBottomRef = useRef(true);
+    const STORAGE_LIMIT = 200;
+    const [debugEvents, setDebugEvents] = useState([]);
+    const debugEnabled = typeof window !== 'undefined' && localStorage.getItem('MM_DEBUG') === '1';
+
+    const EPHEMERAL_TTL_MS = 2 * 60 * 1000;
+    const MESSAGE_ACK_TIMEOUT_MS = 4000;
+    const MESSAGE_MAX_RETRIES = 2;
+    const POLL_INTERVAL_MS = 3000;
+    const FULL_SYNC_INTERVAL_MS = 30000;
 
     // Determine which room to use (mood room or private room)
     const roomId = privateRoom ? `private_${privateRoom.id}` : (currentMood ? currentMood.id : null);
@@ -29,9 +47,282 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
         return Number(msg.targetUserId) === Number(currentUserId);
     };
 
+    const isEphemeralSystemMessage = (msg) => {
+        if (!msg || msg.user !== 'System' || !msg.text) return false;
+        return (
+            msg.text.includes('sent you a chat request') ||
+            msg.text.includes('accepted your chat request')
+        );
+    };
+
+    const getMessageTimestamp = (msg) => {
+        return msg?.timestamp || msg?.createdAt || null;
+    };
+
+    const getMessageTimeMs = (msg) => {
+        const timestamp = getMessageTimestamp(msg);
+        if (!timestamp) return null;
+        if (typeof timestamp === 'number') return timestamp;
+        if (typeof timestamp === 'string') {
+            const normalized = timestamp.includes(' ') && !timestamp.includes('T')
+                ? timestamp.replace(' ', 'T')
+                : timestamp;
+            const parsed = Date.parse(normalized);
+            return Number.isNaN(parsed) ? null : parsed;
+        }
+        const parsed = Date.parse(String(timestamp));
+        return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const isEphemeralExpired = (msg) => {
+        if (!isEphemeralSystemMessage(msg)) return false;
+        const messageTime = getMessageTimeMs(msg);
+        if (!messageTime) return true;
+        return Date.now() - messageTime > EPHEMERAL_TTL_MS;
+    };
+
+    const cleanupExpiredMessages = (list) => {
+        const filtered = list.filter(msg => !isEphemeralExpired(msg));
+        return filtered;
+    };
+
+    const scheduleExpire = (msg) => {
+        if (!isEphemeralSystemMessage(msg) || !msg?.id) return;
+        if (expirationTimeoutsRef.current.has(msg.id)) return;
+
+        const now = Date.now();
+        const messageTime = getMessageTimeMs(msg) ?? now;
+        const remaining = EPHEMERAL_TTL_MS - Math.max(0, now - messageTime);
+
+        if (remaining <= 0) {
+            setMessages(prev => prev.filter(m => m.id !== msg.id));
+            return;
+        }
+
+        const timeoutId = setTimeout(() => {
+            setMessages(prev => prev.filter(m => m.id !== msg.id));
+            expirationTimeoutsRef.current.delete(msg.id);
+        }, remaining);
+
+        expirationTimeoutsRef.current.set(msg.id, timeoutId);
+    };
+
+    const fetchMessages = (options = {}) => {
+        const { silent = false } = options;
+        if (!roomId) return;
+        lastSyncAtRef.current = Date.now();
+        if (!silent) {
+            setLoading(true);
+        }
+        const sinceId = isPrivateRoom ? 0 : (options.sinceId || 0);
+        const cacheBust = `ts=${Date.now()}`;
+        const userParam = user?.id ? `userId=${user.id}` : '';
+        const sinceParam = sinceId > 0 ? `sinceId=${sinceId}` : '';
+        const query = [sinceParam, userParam, cacheBust].filter(Boolean).join('&');
+        fetch(`${API_URL}/api/messages/${roomId}?${query}`, {
+            cache: 'no-store'
+        })
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch messages');
+                return res.json();
+            })
+            .then(data => {
+                if (debugEnabled) {
+                    setDebugEvents(prev => [...prev.slice(-49), {
+                        type: 'fetch_messages',
+                        at: Date.now(),
+                        roomId,
+                        sinceId,
+                        count: Array.isArray(data) ? data.length : -1
+                    }]);
+                }
+                // Fetch user avatars for messages
+                const messagesWithAvatars = data.map(msg => {
+                    if (!msg.avatar && msg.userId) {
+                        fetch(`${API_URL}/api/users/${msg.userId}`)
+                            .then(res => res.json())
+                            .then(userData => {
+                                setMessages(prev => prev.map(m =>
+                                    m.id === msg.id ? { ...m, avatar: userData.avatar } : m
+                                ));
+                            })
+                            .catch(() => { });
+                    }
+                    return msg;
+                });
+                const visibleMessages = messagesWithAvatars.filter(msg => !isEphemeralExpired(msg));
+                if (debugEnabled) {
+                    setDebugEvents(prev => [...prev.slice(-49), {
+                        type: 'visible_messages',
+                        at: Date.now(),
+                        roomId,
+                        count: visibleMessages.length
+                    }]);
+                }
+                if (visibleMessages.length > 0) {
+                    const maxId = Math.max(...visibleMessages.map(m => Number(m.id)).filter(n => Number.isFinite(n)));
+                    if (Number.isFinite(maxId)) {
+                        lastMessageIdRef.current = Math.max(lastMessageIdRef.current, maxId);
+                    }
+                    emptyDeltaCountRef.current = 0;
+                } else if (sinceId > 0) {
+                    emptyDeltaCountRef.current += 1;
+                }
+                if (sinceId === 0) {
+                    lastFullSyncAtRef.current = Date.now();
+                    emptyDeltaCountRef.current = 0;
+                }
+
+                setMessages(prev => {
+                    const prevFiltered = cleanupExpiredMessages(prev);
+                    const prevById = new Map(prevFiltered.map(m => [m.id, m]));
+                    const prevByClientId = new Map(prevFiltered.filter(m => m.clientId).map(m => [m.clientId, m]));
+                    const mergedMap = new Map(prevFiltered.map(m => [m.id, m]));
+
+                    // Upsert server messages without dropping existing ones
+                    visibleMessages.forEach(m => {
+                        const existing = prevByClientId.get(m.clientId) || prevById.get(m.id);
+                        if (existing) {
+                            mergedMap.set(existing.id, { ...existing, ...m, pending: false, failed: false });
+                        } else {
+                            mergedMap.set(m.id, m);
+                        }
+                    });
+
+                    const merged = cleanupExpiredMessages(Array.from(mergedMap.values()));
+                    merged.sort((a, b) => {
+                        const aNum = Number(a.id);
+                        const bNum = Number(b.id);
+                        if (Number.isFinite(aNum) && Number.isFinite(bNum)) {
+                            return aNum - bNum;
+                        }
+                        return String(a.id).localeCompare(String(b.id));
+                    });
+
+                    const numericIds = merged.map(m => Number(m.id)).filter(n => Number.isFinite(n));
+                    if (numericIds.length > 0) {
+                        lastMessageIdRef.current = Math.max(lastMessageIdRef.current, ...numericIds);
+                    }
+                    const prevIds = prevFiltered.map(m => m.id).join(',');
+                    const mergedIds = merged.map(m => m.id).join(',');
+                    if (prevIds === mergedIds) {
+                        return prevFiltered;
+                    }
+                    return merged;
+                });
+                if (debugEnabled) {
+                    setDebugEvents(prev => [...prev.slice(-49), {
+                        type: 'merge_done',
+                        at: Date.now(),
+                        roomId,
+                        count: messagesWithAvatars.length
+                    }]);
+                }
+                visibleMessages.forEach(scheduleExpire);
+                if (sinceId > 0 && emptyDeltaCountRef.current >= 3) {
+                    emptyDeltaCountRef.current = 0;
+                    fetchMessages({ silent: true, sinceId: 0 });
+                }
+                if (!silent) {
+                    setLoading(false);
+                }
+            })
+            .catch(err => {
+                console.error("Failed to fetch messages:", err);
+                if (debugEnabled) {
+                    setDebugEvents(prev => [...prev.slice(-49), {
+                        type: 'fetch_error',
+                        at: Date.now(),
+                        roomId,
+                        sinceId,
+                        error: err.message
+                    }]);
+                }
+                if (!silent) {
+                    setError(err.message);
+                    setLoading(false);
+                }
+            });
+    };
+
+    const fetchUndelivered = () => {
+        if (!isPrivateRoom || !user?.id) return;
+        fetch(`${API_URL}/api/messages/undelivered/${user.id}?ts=${Date.now()}`, {
+            cache: 'no-store'
+        })
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch undelivered messages');
+                return res.json();
+            })
+            .then(data => {
+                if (!Array.isArray(data) || data.length === 0) return;
+                const idsToAck = [];
+                let maxId = null;
+                setMessages(prev => {
+                    const merged = cleanupExpiredMessages(prev);
+                    data.forEach(msg => {
+                        if (isEphemeralExpired(msg)) {
+                            idsToAck.push(msg.id);
+                            return;
+                        }
+                        if (msg.roomId !== roomId) {
+                            idsToAck.push(msg.id);
+                            return;
+                        }
+                        if (!shouldShowMessage(msg, user.id)) {
+                            idsToAck.push(msg.id);
+                            return;
+                        }
+                        const exists = merged.some(m => m.id === msg.id);
+                        if (!exists) {
+                            merged.push(msg);
+                        }
+                        idsToAck.push(msg.id);
+                        if (Number.isFinite(Number(msg.id))) {
+                            maxId = Math.max(maxId ?? 0, Number(msg.id));
+                        }
+                        scheduleExpire(msg);
+                    });
+                    return merged;
+                });
+                if (Number.isFinite(maxId)) {
+                    lastMessageIdRef.current = Math.max(lastMessageIdRef.current, maxId);
+                }
+                lastMessageAtRef.current = Date.now();
+                if (idsToAck.length > 0) {
+                    fetch(`${API_URL}/api/messages/ack`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: user.id, messageIds: idsToAck })
+                    }).catch(() => {});
+                }
+            })
+            .catch(() => {});
+    };
+
     // Initialize socket and join room
     useEffect(() => {
         if ((!currentMood && !privateRoom) || !user) return;
+
+        if (debugEnabled) {
+            setDebugEvents(prev => [...prev.slice(-49), {
+                type: 'mount',
+                at: Date.now(),
+                roomId
+            }]);
+        }
+
+        const cached = sessionStorage.getItem(`messages:${roomId}`);
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setMessages(parsed.filter(msg => !isEphemeralExpired(msg)));
+                }
+            } catch (e) {
+                sessionStorage.removeItem(`messages:${roomId}`);
+            }
+        }
 
         // Use global socket if available, otherwise create new one
         if (window.socket) {
@@ -51,8 +342,13 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
 
         const socket = socketRef.current;
 
+        const joinRoom = () => {
+            if (!roomId || !user?.id) return;
+            socket.emit('join_room', { roomId: roomId, userId: user.id });
+        };
+
         // Join the room with user info
-        socket.emit('join_room', { roomId: roomId, userId: user.id });
+        joinRoom();
 
         // Fetch other user info for private rooms
         if (isPrivateRoom && privateRoom.otherUserId) {
@@ -63,45 +359,61 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
         }
 
         // Fetch history
-        setLoading(true);
-        fetch(`${API_URL}/api/messages/${roomId}`)
-            .then(res => {
-                if (!res.ok) throw new Error('Failed to fetch messages');
-                return res.json();
-            })
-            .then(data => {
-                // Fetch user avatars for messages
-                const messagesWithAvatars = data.map(msg => {
-                    if (!msg.avatar && msg.userId) {
-                        // Fetch avatar from user endpoint
-                        fetch(`${API_URL}/api/users/${msg.userId}`)
-                            .then(res => res.json())
-                            .then(userData => {
-                                setMessages(prev => prev.map(m =>
-                                    m.id === msg.id ? { ...m, avatar: userData.avatar } : m
-                                ));
-                            })
-                            .catch(() => { });
-                    }
-                    return msg;
-                });
-                setMessages(messagesWithAvatars.filter(msg => shouldShowMessage(msg, user.id)));
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error("Failed to fetch messages:", err);
-                setError(err.message);
-                setLoading(false);
-            });
+        fetchMessages();
 
         // Listen for new messages
         const handleReceiveMessage = (data) => {
-            if (!shouldShowMessage(data, user.id)) return;
-            setMessages((prev) => {
-                // Avoid duplicates
-                if (prev.some(m => m.id === data.id)) return prev;
-                return [...prev, data];
+            if (data?.roomId && data.roomId !== roomId) return;
+            if (isEphemeralExpired(data)) return;
+            // Server filters system messages by target_user_id
+            if (debugEnabled) {
+                setDebugEvents(prev => [...prev.slice(-49), {
+                    type: 'receive_message',
+                    at: Date.now(),
+                    roomId: data?.roomId,
+                    id: data?.id,
+                    clientId: data?.clientId
+                }]);
+            }
+        setMessages((prev) => {
+            const prevFiltered = cleanupExpiredMessages(prev);
+            const existingById = prevFiltered.some(m => m.id === data.id);
+            if (existingById) return prevFiltered;
+
+                if (data?.clientId) {
+                const hasPending = prevFiltered.some(m => m.clientId === data.clientId);
+                    if (hasPending) {
+                    return prevFiltered.map(m => m.clientId === data.clientId
+                            ? { ...data, pending: false, failed: false }
+                            : m
+                        );
+                    }
+                }
+            return [...prevFiltered, data];
             });
+            lastMessageAtRef.current = Date.now();
+            if (Number.isFinite(Number(data?.id))) {
+                const incomingId = Number(data.id);
+                if (lastMessageIdRef.current > 0 && incomingId > lastMessageIdRef.current + 1) {
+                    fetchMessages({ silent: true, sinceId: 0 });
+                }
+                lastMessageIdRef.current = Math.max(lastMessageIdRef.current, incomingId);
+            }
+            if (data?.clientId && pendingMessagesRef.current.has(data.clientId)) {
+                const entry = pendingMessagesRef.current.get(data.clientId);
+                if (entry?.timeoutId) {
+                    clearTimeout(entry.timeoutId);
+                }
+                pendingMessagesRef.current.delete(data.clientId);
+            }
+            if (Number.isFinite(Number(data?.id)) && user?.id) {
+                fetch(`${API_URL}/api/messages/ack`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: user.id, messageIds: [data.id] })
+                }).catch(() => {});
+            }
+            scheduleExpire(data);
         };
 
         // Listen for typing indicators
@@ -130,7 +442,18 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
             }
         };
 
+        const handleConnect = () => {
+            joinRoom();
+            socket.emit('register_user', { userId: user.id });
+            fetchMessages({ silent: true, sinceId: lastMessageIdRef.current });
+            fetchUndelivered();
+            if (debugEnabled) {
+                setDebugEvents(prev => [...prev.slice(-49), { type: 'socket_connect', at: Date.now(), roomId }]);
+            }
+        };
+
         socket.on('receive_message', handleReceiveMessage);
+        socket.on('connect', handleConnect);
         socket.on('user_typing', handleUserTyping);
         socket.on('user_stopped_typing', handleUserStoppedTyping);
 
@@ -138,15 +461,64 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
         window.socket = socket;
 
         return () => {
+            if (debugEnabled) {
+                setDebugEvents(prev => [...prev.slice(-49), {
+                    type: 'unmount',
+                    at: Date.now(),
+                    roomId
+                }]);
+            }
             if (socketRef.current) {
                 socketRef.current.off('receive_message', handleReceiveMessage);
+                socketRef.current.off('connect', handleConnect);
                 socketRef.current.off('user_typing', handleUserTyping);
                 socketRef.current.off('user_stopped_typing', handleUserStoppedTyping);
             }
             setTypingUsers(new Set());
-            window.socket = null;
+            expirationTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
+            expirationTimeoutsRef.current.clear();
+            pendingMessagesRef.current.forEach(timeoutId => clearTimeout(timeoutId));
+            pendingMessagesRef.current.clear();
         };
     }, [roomId, user, isPrivateRoom, privateRoom]);
+
+    useEffect(() => {
+        if (!roomId) return;
+        const toStore = cleanupExpiredMessages(messages).slice(-STORAGE_LIMIT);
+        sessionStorage.setItem(`messages:${roomId}`, JSON.stringify(toStore));
+    }, [messages, roomId]);
+
+    useEffect(() => {
+        if (!isPrivateRoom) return;
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                fetchMessages({ silent: true, sinceId: 0 });
+                fetchUndelivered();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
+    }, [isPrivateRoom, roomId]);
+
+    useEffect(() => {
+        if (!isPrivateRoom) return;
+        const intervalId = setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            const now = Date.now();
+            const socketConnected = socketRef.current?.connected;
+            const hasPending = pendingMessagesRef.current.size > 0;
+            const stale = now - lastSyncAtRef.current > POLL_INTERVAL_MS;
+            const quiet = now - lastMessageAtRef.current > POLL_INTERVAL_MS;
+            const needsFull = now - lastFullSyncAtRef.current > FULL_SYNC_INTERVAL_MS;
+            if (needsFull) {
+                fetchMessages({ silent: true, sinceId: 0 });
+            } else if (hasPending || !socketConnected || stale || quiet) {
+                fetchMessages({ silent: true, sinceId: lastMessageIdRef.current });
+            }
+            fetchUndelivered();
+        }, POLL_INTERVAL_MS);
+        return () => clearInterval(intervalId);
+    }, [isPrivateRoom, roomId]);
 
     const scrollToBottom = () => {
         if (messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === 'function') {
@@ -155,7 +527,9 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
     };
 
     useEffect(() => {
-        scrollToBottom();
+        if (isAtBottomRef.current) {
+            scrollToBottom();
+        }
     }, [messages]);
 
     useEffect(() => {
@@ -257,16 +631,87 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
             userId: user.id
         });
 
-        const messageData = {
+        const clientId = `${user.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const optimisticMessage = {
+            id: clientId,
             roomId: roomId,
             userId: user.id,
             user: user.username,
             text: inputText,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            avatar: user.avatar || null,
+            clientId,
+            pending: true,
+            failed: false
         };
 
-        // Emit to server
-        socketRef.current.emit('send_message', messageData);
+        setMessages(prev => [...prev, optimisticMessage]);
+        const messageData = {
+            roomId: roomId,
+            userId: user.id,
+            user: user.username,
+            text: inputText,
+            time: optimisticMessage.time,
+            clientId
+        };
+
+        const markDelivered = (clientId, patch = {}) => {
+            const entry = pendingMessagesRef.current.get(clientId);
+            if (entry) {
+                entry.delivered = true;
+                pendingMessagesRef.current.set(clientId, entry);
+            }
+            setMessages(prev => prev.map(m =>
+                m.clientId === clientId
+                    ? { ...m, ...patch, pending: false, failed: false }
+                    : m
+            ));
+            pendingMessagesRef.current.delete(clientId);
+        };
+
+        const sendViaSocket = (payload) => {
+            if (!socketRef.current) return;
+            socketRef.current.emit('send_message', payload, (ack) => {
+                if (ack?.ok && ack.clientId === payload.clientId) {
+                    markDelivered(payload.clientId, { id: ack.id });
+                }
+            });
+        };
+
+        const sendWithRetry = async (payload) => {
+            const entry = pendingMessagesRef.current.get(payload.clientId);
+            if (entry?.delivered) return;
+            const attempts = entry?.attempts ?? 0;
+            try {
+                const response = await fetch(`${API_URL}/api/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to send message');
+                }
+                const saved = await response.json();
+                markDelivered(payload.clientId, saved);
+            } catch (err) {
+                const nextAttempts = attempts + 1;
+                if (nextAttempts > MESSAGE_MAX_RETRIES) {
+                    pendingMessagesRef.current.delete(payload.clientId);
+                    setMessages(prev => prev.map(m => m.clientId === payload.clientId
+                        ? { ...m, pending: false, failed: true }
+                        : m
+                    ));
+                    fetchMessages({ silent: true, sinceId: lastMessageIdRef.current });
+                    return;
+                }
+                pendingMessagesRef.current.set(payload.clientId, { payload, attempts: nextAttempts });
+                setTimeout(() => sendWithRetry(payload), MESSAGE_ACK_TIMEOUT_MS);
+            }
+        };
+
+        pendingMessagesRef.current.set(clientId, { payload: messageData, attempts: 0, delivered: false });
+        sendViaSocket(messageData);
+        sendWithRetry(messageData);
         setInputText('');
     };
 
@@ -316,7 +761,31 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
                 </h3>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {debugEnabled && (
+                <div className="p-2 text-[10px] text-gray-300 bg-black/30 border-b border-white/10">
+                    <div>room: {roomId} | socket: {socketRef.current?.connected ? 'connected' : 'disconnected'} | msgs: {messages.length}</div>
+                    <div>lastId: {lastMessageIdRef.current} | pending: {pendingMessagesRef.current.size}</div>
+                    <div>lastSync: {new Date(lastSyncAtRef.current).toLocaleTimeString()} | lastMsg: {new Date(lastMessageAtRef.current).toLocaleTimeString()}</div>
+                    <div className="max-h-20 overflow-y-auto mt-1">
+                        {debugEvents.slice(-6).map((e, idx) => (
+                            <div key={`${e.type}-${idx}`}>
+                                {new Date(e.at).toLocaleTimeString()} {e.type} {e.roomId || ''} {e.id || ''} {e.count ?? ''} {e.error || ''}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <div
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto p-4 space-y-4"
+                onScroll={() => {
+                    const el = messagesContainerRef.current;
+                    if (!el) return;
+                    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+                    isAtBottomRef.current = distanceFromBottom < 40;
+                }}
+            >
                 {loading ? (
                     <div className="flex items-center justify-center py-10">
                         <Loader2 className="animate-spin h-6 w-6 text-primary" />
@@ -360,7 +829,15 @@ const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
                                             >
                                                 {!isMe && <p className="text-xs text-primary mb-1 font-medium">{msg.user}</p>}
                                                 <p className="text-sm">{msg.text}</p>
-                                                <p className="text-[10px] opacity-50 text-right mt-1">{msg.time}</p>
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <p className="text-[10px] opacity-50">{msg.time}</p>
+                                                    {isMe && msg.pending && (
+                                                        <p className="text-[10px] opacity-70 text-primary">Sending…</p>
+                                                    )}
+                                                    {isMe && msg.failed && (
+                                                        <p className="text-[10px] opacity-70 text-red-400">Syncing…</p>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             {/* Context Menu for Reporting/Blocking */}

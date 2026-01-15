@@ -218,7 +218,7 @@ ifconfig | grep "inet " | grep -v 127.0.0.1
 
 # Example: 192.168.1.100
 # Update in .env:
-VITE_API_URL=http://192.168.1.100:3001
+VITE_API_URL=http://192.168.1.100:3002
 ```
 
 ### Option 2: Use ngrok (for external testing)
@@ -227,7 +227,7 @@ VITE_API_URL=http://192.168.1.100:3001
 brew install ngrok
 
 # Expose local server
-ngrok http 3001
+ngrok http 3002
 
 # Use the ngrok URL in .env
 VITE_API_URL=https://your-ngrok-url.ngrok.io

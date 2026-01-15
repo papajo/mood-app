@@ -89,7 +89,7 @@ async function createActiveUsers() {
   console.log(`💬 Happy Room Messages: ${totalMessages[0].count} total`);
   
   console.log('\n🎪 HOW TO TEST:');
-  console.log('1. Open http://localhost:5173');
+  console.log('1. Open http://localhost:5174');
   console.log('2. You will see an auto-created user');
   console.log('3. Open another browser tab/incognito');
   console.log('4. In the NEW tab, enter these credentials:');

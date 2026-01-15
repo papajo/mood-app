@@ -22,13 +22,13 @@ cd server && node index.js
 # Terminal 2: Frontend
 npm run dev
 
-# Open browser: http://localhost:5173
+# Open browser: http://localhost:5174
 ```
 
 ### **Step 2: Multi-User Testing**
 
 #### **Method 1: Browser Console (Easiest)**
-1. **Open http://localhost:5173** in your browser
+1. **Open http://localhost:5174** in your browser
 2. **Open 3-4 more tabs** of the same URL
 3. **In each tab console**, paste:
    ```javascript
@@ -89,7 +89,7 @@ location.reload();
 
 #### **📱 Mobile Testing**
 1. **Find your IP**: `ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}'`
-2. **On phone**: `http://YOUR_IP:5173`
+2. **On phone**: `http://YOUR_IP:5174`
 3. **Expected**: Full mobile experience with touch optimization
 
 ---
@@ -159,7 +159,7 @@ location.reload();
 
 ### **🎯 Perfect Testing Experience Awaits:**
 
-1. **Open**: http://localhost:5173
+1. **Open**: http://localhost:5174
 2. **Load switcher**: Paste the JavaScript above  
 3. **Multi-tab setup**: Switch users in different tabs  
 4. **Select same mood**: All enter Happy Room together  
@@ -178,11 +178,11 @@ location.reload();
 
 **No Other Users**: If you see only yourself
 - Make sure other tabs selected the same mood
-- Check if users show up in API: http://localhost:3001/api/users/match/happy
+- Check if users show up in API: http://localhost:3002/api/users/match/happy
 
 **Mobile Issues**: If mobile doesn't work
 - Check IP address is correct
 - Ensure both devices on same WiFi network
-- Try http://localhost:5173 on desktop first
+- Try http://localhost:5174 on desktop first
 
 **The Rooms feature is fully implemented and ready for testing!** 🌈

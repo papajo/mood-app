@@ -31,34 +31,7 @@ describe('App Integration Tests', () => {
         });
     });
 
-    it('should render app and create user on first load', async () => {
-        // Mock user creation
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({
-                id: 1,
-                username: 'TestUser123',
-                avatar: null,
-                status: 'Just joined!',
-                currentMoodId: null,
-            }),
-        });
-
-        // Mock notifications (hearts + chat requests) - App fetches these BEFORE mood fetch
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => [],
-        });
-
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => [],
-        });
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => null,
-        });
-
+    it('should render login when not authenticated', async () => {
         render(
             <UserProvider>
                 <NotificationProvider>
@@ -67,46 +40,40 @@ describe('App Integration Tests', () => {
             </UserProvider>
         );
 
-        // Should show loading initially
-        expect(screen.getByText(/Loading/i)).toBeInTheDocument();
-
-        // Wait for user to be created
         await waitFor(() => {
-            expect(fetch).toHaveBeenCalledWith(
-                expect.stringContaining('/api/users'),
-                expect.objectContaining({ method: 'POST' })
-            );
-        }, { timeout: 3000 });
+            expect(screen.getByText(/Welcome Back/i)).toBeInTheDocument();
+        });
     });
 
     it('should display mood tracker after user loads', async () => {
-        // Mock existing user
-        localStorage.setItem('userId', '1');
-        localStorage.setItem('username', 'TestUser');
+        localStorage.setItem('authToken', 'test-token');
 
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({
-                id: 1,
-                username: 'TestUser',
-                avatar: null,
-                status: 'Test status',
-                currentMoodId: null,
-            }),
-        });
-
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => [],
-        });
-
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => [],
-        });
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => null,
+        fetch.mockImplementation(async (input) => {
+            const url = String(input);
+            if (url.includes('/api/auth/verify')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        user: {
+                            id: 1,
+                            username: 'TestUser',
+                            avatar: null,
+                            status: 'Test status',
+                            currentMoodId: null,
+                        }
+                    })
+                };
+            }
+            if (url.includes('/api/hearts/')) {
+                return { ok: true, json: async () => [] };
+            }
+            if (url.includes('/api/private-chat/requests/')) {
+                return { ok: true, json: async () => [] };
+            }
+            if (url.includes('/api/mood/')) {
+                return { ok: true, json: async () => null };
+            }
+            return { ok: true, json: async () => [] };
         });
 
         render(
@@ -123,21 +90,22 @@ describe('App Integration Tests', () => {
     });
 
     it('should switch between tabs', async () => {
-        localStorage.setItem('userId', '1');
-        localStorage.setItem('username', 'TestUser');
+        localStorage.setItem('authToken', 'test-token');
 
         // Use URL-based fetch mocking to avoid brittle call ordering
         fetch.mockImplementation(async (input) => {
             const url = String(input);
-            if (url.includes('/api/users/1')) {
+            if (url.includes('/api/auth/verify')) {
                 return {
                     ok: true,
                     json: async () => ({
-                        id: 1,
-                        username: 'TestUser',
-                        avatar: null,
-                        status: 'Test',
-                        currentMoodId: null,
+                        user: {
+                            id: 1,
+                            username: 'TestUser',
+                            avatar: null,
+                            status: 'Test',
+                            currentMoodId: null,
+                        }
                     }),
                 };
             }

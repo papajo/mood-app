@@ -24,12 +24,12 @@ npm run dev
 
 ```bash
 # Check if servers are listening
-lsof -i :5173  # Frontend
-lsof -i :3001  # Backend
+lsof -i :5174  # Frontend
+lsof -i :3002  # Backend
 
 # Test locally
-curl http://localhost:5173
-curl http://localhost:3001/api/users
+curl http://localhost:5174
+curl http://localhost:3002/api/users
 ```
 
 ## Access from iPhone
@@ -40,8 +40,8 @@ curl http://localhost:3001/api/users
    ./scripts/get-mac-ip.sh
    ```
 3. **On iPhone Safari:**
-   - Go to: `http://YOUR_MAC_IP:5173`
-   - Example: `http://192.168.254.150:5173`
+   - Go to: `http://YOUR_MAC_IP:5174`
+   - Example: `http://192.168.254.150:5174`
 4. **Add to Home Screen** (Share → Add to Home Screen)
 
 ## Troubleshooting
@@ -50,7 +50,7 @@ curl http://localhost:3001/api/users
 - ✅ Check both servers are running
 - ✅ Check Mac and iPhone on same WiFi
 - ✅ Check Mac firewall (allow Node.js)
-- ✅ Try accessing from Mac browser first: `http://localhost:5173`
+- ✅ Try accessing from Mac browser first: `http://localhost:5174`
 
 ### "Empty page"
 - ✅ Wait a few seconds for Vite to compile
@@ -58,10 +58,10 @@ curl http://localhost:3001/api/users
 - ✅ Verify API_URL is correct (should use Mac IP, not localhost)
 
 ### "API calls fail"
-- ✅ Backend must be running on port 3001
+- ✅ Backend must be running on port 3002
 - ✅ Update `.env` file:
   ```bash
-  echo "VITE_API_URL=http://192.168.254.150:3001" > .env
+  echo "VITE_API_URL=http://192.168.254.150:3002" > .env
   ```
 - ✅ Rebuild: `npm run build && npm run dev`
 
@@ -71,8 +71,8 @@ After running `npm run dev`, you should see:
 ```
   VITE v7.x.x  ready in xxx ms
 
-  ➜  Local:   http://localhost:5173/
-  ➜  Network: http://192.168.254.150:5173/
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.254.150:5174/
 ```
 
 Use the **Network** URL on your iPhone!

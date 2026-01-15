@@ -33,8 +33,8 @@ npm run test:pwa
 ### Step 3: On iPhone Safari
 
 1. **Open Safari** on iPhone
-2. **Navigate to**: `http://YOUR_MAC_IP:5173`
-   - Example: `http://192.168.254.150:5173`
+2. **Navigate to**: `http://YOUR_MAC_IP:5174`
+   - Example: `http://192.168.254.150:5174`
 3. **Tap Share button** (square with arrow up)
 4. **Tap "Add to Home Screen"**
 5. **Customize name** (optional)
@@ -69,7 +69,7 @@ This will:
 ### Firewall
 If connection fails:
 ```bash
-# Allow incoming connections on port 5173
+# Allow incoming connections on port 5174
 # System Preferences → Security & Privacy → Firewall → Firewall Options
 # Add Node.js to allowed apps
 ```
@@ -83,7 +83,7 @@ If WiFi doesn't work:
 brew install ngrok
 
 # Expose frontend
-ngrok http 5173
+ngrok http 5174
 
 # Use the ngrok URL on iPhone
 # Example: https://abc123.ngrok.io
@@ -121,7 +121,7 @@ ngrok http 5173
 - Check Mac and iPhone are on same WiFi
 - Check Mac's firewall settings
 - Try ngrok for external access
-- Verify servers are running: `lsof -i :5173` and `lsof -i :3001`
+- Verify servers are running: `lsof -i :5174` and `lsof -i :3002`
 
 ### "API calls fail"
 - Update API URL to Mac's IP (not localhost)

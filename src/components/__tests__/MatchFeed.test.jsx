@@ -4,7 +4,7 @@ import MatchFeed from '../MatchFeed';
 
 // Mock API
 vi.mock('../../config/api', () => ({
-    API_URL: 'http://localhost:3001'
+    API_URL: 'http://localhost:3002'
 }));
 
 global.fetch = vi.fn();
@@ -13,6 +13,13 @@ global.fetch = vi.fn();
 const mockHookUser = { id: 1, username: 'TestUser' };
 vi.mock('../../contexts/UserContext', () => ({
     useUser: () => ({ user: mockHookUser })
+}));
+
+// Mock NotificationContext
+vi.mock('../../contexts/NotificationContext', () => ({
+    useNotifications: () => ({
+        openPrivateRoom: vi.fn()
+    })
 }));
 
 describe('MatchFeed', () => {

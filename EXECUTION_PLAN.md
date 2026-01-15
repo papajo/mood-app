@@ -88,7 +88,7 @@
    - **Impact**: Poor user experience, silent failures
 
 8. **Environment Configuration**
-   - ❌ Hardcoded API URLs (`http://localhost:3001`)
+   - ❌ Hardcoded API URLs (`http://localhost:3002`)
    - ❌ No `.env` files
    - ❌ No environment-based configuration
    - **Impact**: Difficult to deploy, not production-ready
@@ -298,7 +298,7 @@ npm run dev
 ## 📝 Notes
 
 - **Database**: SQLite file (`moodmingle.db`) is created automatically
-- **Ports**: Frontend (5173), Backend (3001)
+- **Ports**: Frontend (5174), Backend (3002)
 - **Real-time**: Socket.io configured but dependency missing
 - **Styling**: Tailwind CSS with custom glassmorphism utilities
 

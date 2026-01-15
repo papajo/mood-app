@@ -71,14 +71,14 @@ See [ENV_SETUP.md](./ENV_SETUP.md) for detailed environment variable configurati
 1. **Frontend** (optional - defaults work for development):
    Create `.env` in the root directory:
    ```env
-   VITE_API_URL=http://localhost:3001
+   VITE_API_URL=http://localhost:3002
    ```
 
 2. **Backend** (optional - defaults work for development):
    Create `.env` in the `server/` directory:
    ```env
-   PORT=3001
-   FRONTEND_URL=http://localhost:5173
+   PORT=3002
+   FRONTEND_URL=http://localhost:5174
    DB_PATH=./moodmingle.db
    ```
 
@@ -94,16 +94,16 @@ cd server
 npm run dev
 ```
 
-The server will start on `http://localhost:3001` (or your configured PORT).
+The server will start on `http://localhost:3002` (or your configured PORT).
 
 **Terminal 2 - Frontend:**
 ```bash
 npm run dev
 ```
 
-The frontend will start on `http://localhost:5173` (Vite default).
+The frontend will start on `http://localhost:5174` (Vite default).
 
-Open your browser and navigate to `http://localhost:5173`
+Open your browser and navigate to `http://localhost:5174`
 
 ### Production Build
 
@@ -155,7 +155,7 @@ MoodMingle/
 
 ### Base URL
 ```
-http://localhost:3001/api
+http://localhost:3002/api
 ```
 
 ### Endpoints
@@ -361,7 +361,7 @@ The SQLite database (`moodmingle.db`) is automatically created on first server s
 ## 🐛 Troubleshooting
 
 ### Server won't start
-- Check if port 3001 is available
+- Check if port 3002 is available
 - Verify Node.js version (18+)
 - Check server logs for errors
 - Ensure database file permissions

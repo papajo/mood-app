@@ -65,7 +65,7 @@ Your app works as a Progressive Web App:
    ```
 
 3. **On iPhone Safari:**
-   - Go to: `http://YOUR_MAC_IP:5173`
+   - Go to: `http://YOUR_MAC_IP:5174`
    - Tap Share button
    - Tap "Add to Home Screen"
    - App installs as PWA!
@@ -116,7 +116,7 @@ npm run dev
 ./scripts/get-mac-ip.sh
 
 # 4. On iPhone Safari:
-#    Navigate to: http://YOUR_IP:5173
+#    Navigate to: http://YOUR_IP:5174
 #    Add to Home Screen
 #    Test like a native app!
 ```
@@ -175,5 +175,5 @@ npm run dev
 # Terminal 3
 ./scripts/get-mac-ip.sh
 
-# Then on iPhone Safari: http://YOUR_IP:5173
+# Then on iPhone Safari: http://YOUR_IP:5174
 ```

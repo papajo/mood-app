@@ -9,8 +9,15 @@ vi.mock('../../contexts/UserContext', () => ({
     useUser: () => ({ user: mockUser })
 }));
 
+// Mock NotificationContext to avoid provider requirement
+vi.mock('../../contexts/NotificationContext', () => ({
+    useNotifications: () => ({
+        openPrivateRoom: vi.fn()
+    })
+}));
+
 vi.mock('../../config/api', () => ({
-    API_URL: 'http://localhost:3001'
+    API_URL: 'http://localhost:3002'
 }));
 
 global.fetch = vi.fn();

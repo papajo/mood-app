@@ -19,21 +19,21 @@ You should see:
 ```
 VITE v7.2.4  ready in xxx ms
 
-➜  Local:   http://localhost:5173/
-➜  Network: http://192.168.254.150:5173/
+➜  Local:   http://localhost:5174/
+➜  Network: http://192.168.254.150:5174/
 ```
 
 ## ✅ Current Status
 
 - ✅ Vite config updated to listen on all interfaces (0.0.0.0)
-- ✅ Frontend accessible at: `http://192.168.254.150:5173`
-- ✅ Backend accessible at: `http://192.168.254.150:3001`
+- ✅ Frontend accessible at: `http://192.168.254.150:5174`
+- ✅ Backend accessible at: `http://192.168.254.150:3002`
 - ✅ .env file configured with Mac IP
 
 ## 📱 On Your iPhone
 
 1. **Open Safari**
-2. **Go to**: `http://192.168.254.150:5173`
+2. **Go to**: `http://192.168.254.150:5174`
 3. **Wait for page to load** (may take 10-20 seconds first time)
 4. **Tap Share button** (square with arrow)
 5. **Tap "Add to Home Screen"**
@@ -44,8 +44,8 @@ VITE v7.2.4  ready in xxx ms
 ### Check Servers Are Running
 ```bash
 # Should show processes
-lsof -i :5173
-lsof -i :3001
+lsof -i :5174
+lsof -i :3002
 ```
 
 ### Check Firewall
@@ -57,7 +57,7 @@ lsof -i :3001
 ### Test from Mac Browser First
 ```bash
 # Should work on Mac
-open http://localhost:5173
+open http://localhost:5174
 ```
 
 ### Restart Servers
@@ -80,7 +80,7 @@ npm run dev &
 
 ## 🎯 Expected Behavior
 
-When you open `http://192.168.254.150:5173` on iPhone:
+When you open `http://192.168.254.150:5174` on iPhone:
 - Page should load (may take 10-20 seconds)
 - You should see the MoodMingle app
 - If you see "Loading..." that's normal - wait for it
@@ -88,4 +88,4 @@ When you open `http://192.168.254.150:5173` on iPhone:
 
 ---
 
-**Servers are now configured correctly!** Try accessing `http://192.168.254.150:5173` on your iPhone again.
+**Servers are now configured correctly!** Try accessing `http://192.168.254.150:5174` on your iPhone again.

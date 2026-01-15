@@ -24,11 +24,11 @@ cd server && node index.js &
 npm run dev
 
 # Open browser
-# http://localhost:5173
+# http://localhost:5174
 ```
 
 ### **Step 2: Create Test Environment**
-1. **Open** http://localhost:5173
+1. **Open** http://localhost:5174
 2. **You'll see**: Auto-created random user (e.g., "User1234")
 3. **Open 3 more tabs** for multi-user simulation
 4. **In each new tab console**, run this:
@@ -83,7 +83,7 @@ switchUser(6);  // Tab 4: Chill_Vibes (Chill Room)
 # Find your IP (for mobile access)
 ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}'
 
-# On phone: http://YOUR_IP:5173
+# On phone: http://YOUR_IP:5174
 ```
 
 ### **🛡️ Safety Features**
@@ -146,7 +146,7 @@ The app now includes comprehensive logging:
 ✅ **Real-time**: Socket.io working  
 
 ### **Perfect Testing Path**:
-1. **Fresh browser**: Clear cache, open http://localhost:5173
+1. **Fresh browser**: Clear cache, open http://localhost:5174
 2. **Load switcher**: Paste JavaScript code in console
 3. **Multi-tab setup**: Switch different users in different tabs
 4. **Select same mood**: All users enter Happy Room together

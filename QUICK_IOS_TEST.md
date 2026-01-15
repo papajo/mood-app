@@ -59,7 +59,7 @@ If API calls fail, update API URL to your Mac's IP:
 ifconfig | grep "inet " | grep -v 127.0.0.1
 
 # Update .env
-VITE_API_URL=http://YOUR_MAC_IP:3001
+VITE_API_URL=http://YOUR_MAC_IP:3002
 
 # Rebuild
 npm run build

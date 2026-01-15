@@ -142,8 +142,8 @@ const authenticateToken = (req, res, next) => {
 export const app = express();
 export const httpServer = createServer(app);
 
-const port = process.env.PORT || 3001;
-const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+const port = process.env.PORT || 3002;
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
 
 // CORS configuration - allow localhost and network IPs
 const corsOptions = {
@@ -153,16 +153,16 @@ const corsOptions = {
         
         // Allow localhost and network IPs
         const allowedOrigins = [
-            'http://localhost:5173',
-            'http://127.0.0.1:5173',
+            'http://localhost:5174',
+            'http://127.0.0.1:5174',
             frontendUrl,
         ];
         
         // Check if origin matches allowed patterns
         const isAllowed = allowedOrigins.includes(origin) ||
-            /^http:\/\/192\.168\.\d+\.\d+:5173$/.test(origin) ||
-            /^http:\/\/10\.\d+\.\d+\.\d+:5173$/.test(origin) ||
-            /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:5173$/.test(origin);
+            /^http:\/\/192\.168\.\d+\.\d+:5174$/.test(origin) ||
+            /^http:\/\/10\.\d+\.\d+\.\d+:5174$/.test(origin) ||
+            /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:5174$/.test(origin);
         
         if (isAllowed || process.env.NODE_ENV !== 'production') {
             callback(null, true);
@@ -269,6 +269,7 @@ export const initializeDatabaseTables = async () => {
             "user" VARCHAR(255),
             text TEXT,
             time VARCHAR(50),
+            client_id TEXT,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
@@ -284,6 +285,28 @@ export const initializeDatabaseTables = async () => {
                 console.warn('Migration note (messages.target_user_id):', err.message);
             }
         }
+
+        // Migration: add client_id for message de-duplication
+        try {
+            const msgTableInfo = await db.query(`PRAGMA table_info(messages)`);
+            const hasClientId = msgTableInfo.rows.some(col => col.name === 'client_id');
+            if (!hasClientId) {
+                await db.query(`ALTER TABLE messages ADD COLUMN client_id TEXT`);
+            }
+        } catch (err) {
+            if (!err.message.includes('duplicate column name') && !err.message.includes('already exists')) {
+                console.warn('Migration note (messages.client_id):', err.message);
+            }
+        }
+
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_messages_room_client ON messages(room_id, client_id)`);
+
+        await db.query(`CREATE TABLE IF NOT EXISTS message_deliveries (
+            message_id INTEGER,
+            user_id INTEGER,
+            delivered_at TIMESTAMP,
+            PRIMARY KEY (message_id, user_id)
+        )`);
 
         await db.query(`CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -401,10 +424,10 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit('user_stopped_typing', { userId });
     });
 
-    socket.on('send_message', async (data) => {
+    socket.on('send_message', async (data, callback) => {
         try {
             // Validate input data
-            const { roomId, userId, user, text, time } = data;
+            const { roomId, userId, user, text, time, clientId } = data;
 
             // Validate message text
             const textValidation = validateMessageText(text);
@@ -432,31 +455,141 @@ io.on('connection', (socket) => {
             const sanitizedRoomId = roomValidation.sanitized;
             const sanitizedUser = user ? user.toString().trim().substring(0, 30) : 'Anonymous';
 
-        const result = await db.query(
-            'INSERT INTO messages (room_id, user_id, "user", text, time) VALUES (?, ?, ?, ?, ?)',
-            [sanitizedRoomId, sanitizedUserId, sanitizedUser, sanitizedText, time]
+            if (clientId) {
+                const { rows: existingRows } = await db.query(`
+                    SELECT m.*, u.avatar
+                    FROM messages m
+                    LEFT JOIN users u ON m.user_id = u.id
+                    WHERE m.room_id = ? AND m.client_id = ?
+                    LIMIT 1
+                `, [sanitizedRoomId, clientId]);
+
+                if (existingRows.length > 0) {
+                    const row = existingRows[0];
+                    const existingMsg = {
+                        id: row.id,
+                        roomId: row.room_id,
+                        userId: row.user_id,
+                        user: row.user,
+                        text: row.text,
+                        time: row.time,
+                        avatar: row.avatar || null,
+                        clientId: row.client_id || null,
+                        timestamp: row.timestamp
+                    };
+
+                    io.to(sanitizedRoomId).emit('receive_message', existingMsg);
+                    if (sanitizedRoomId.startsWith('private_')) {
+                        const privateRoomId = parseInt(sanitizedRoomId.replace('private_', ''), 10);
+                        if (!Number.isNaN(privateRoomId)) {
+                            const { rows: roomRows } = await db.query(
+                                'SELECT user1_id, user2_id FROM private_chat_rooms WHERE id = ?',
+                                [privateRoomId]
+                            );
+                            const roomRow = roomRows[0];
+                            if (roomRow?.user1_id) {
+                                io.to(`user_${roomRow.user1_id}`).emit('receive_message', existingMsg);
+                            }
+                            if (roomRow?.user2_id) {
+                                io.to(`user_${roomRow.user2_id}`).emit('receive_message', existingMsg);
+                            }
+                        }
+                    }
+
+                    if (typeof callback === 'function') {
+                        callback({ ok: true, id: row.id, clientId: row.client_id || null });
+                    }
+                    return;
+                }
+            }
+
+        await db.query(
+            'INSERT INTO messages (room_id, user_id, "user", text, time, client_id) VALUES (?, ?, ?, ?, ?, ?)',
+            [sanitizedRoomId, sanitizedUserId, sanitizedUser, sanitizedText, time, clientId || null]
         );
 
-        const messageId = result.rows[0]?.id;
-
-            // Get user avatar from database
-            const { rows: userRows } = await db.query('SELECT avatar FROM users WHERE id = ?', [sanitizedUserId]);
-            const userRow = userRows[0];
+        let savedRow = null;
+        if (clientId) {
+            const { rows: byClientRows } = await db.query(`
+                SELECT m.*, u.avatar
+                FROM messages m
+                LEFT JOIN users u ON m.user_id = u.id
+                WHERE m.room_id = ? AND m.client_id = ?
+                ORDER BY m.id DESC
+                LIMIT 1
+            `, [sanitizedRoomId, clientId]);
+            savedRow = byClientRows[0] || null;
+        }
+        if (!savedRow) {
+            const { rows: lastRows } = await db.query(`
+                SELECT m.*, u.avatar
+                FROM messages m
+                LEFT JOIN users u ON m.user_id = u.id
+                WHERE m.room_id = ?
+                ORDER BY m.id DESC
+                LIMIT 1
+            `, [sanitizedRoomId]);
+            savedRow = lastRows[0] || null;
+        }
 
             const savedMsg = {
-                id: messageId,
+                id: savedRow?.id,
                 roomId: sanitizedRoomId,
                 userId: sanitizedUserId,
                 user: sanitizedUser,
                 text: sanitizedText,
                 time,
-                avatar: userRow?.avatar || null
+                avatar: savedRow?.avatar || null,
+                clientId: clientId || null,
+                timestamp: savedRow?.timestamp || null
             };
             // Broadcast to everyone in the room INCLUDING sender (simplifies frontend state)
             io.to(sanitizedRoomId).emit('receive_message', savedMsg);
+
+            // Fallback for private rooms: deliver directly to both users' rooms
+            if (sanitizedRoomId.startsWith('private_')) {
+                const privateRoomId = parseInt(sanitizedRoomId.replace('private_', ''), 10);
+                if (!Number.isNaN(privateRoomId)) {
+                    const { rows: roomRows } = await db.query(
+                        'SELECT user1_id, user2_id FROM private_chat_rooms WHERE id = ?',
+                        [privateRoomId]
+                    );
+                    const roomRow = roomRows[0];
+                    if (roomRow?.user1_id && savedMsg.id) {
+                        await db.query(
+                            'INSERT OR IGNORE INTO message_deliveries (message_id, user_id) VALUES (?, ?)',
+                            [savedMsg.id, roomRow.user1_id]
+                        );
+                    }
+                    if (roomRow?.user2_id && savedMsg.id) {
+                        await db.query(
+                            'INSERT OR IGNORE INTO message_deliveries (message_id, user_id) VALUES (?, ?)',
+                            [savedMsg.id, roomRow.user2_id]
+                        );
+                    }
+                    if (sanitizedUserId && savedMsg.id) {
+                        await db.query(
+                            'UPDATE message_deliveries SET delivered_at = CURRENT_TIMESTAMP WHERE message_id = ? AND user_id = ?',
+                            [savedMsg.id, sanitizedUserId]
+                        );
+                    }
+                    if (roomRow?.user1_id) {
+                        io.to(`user_${roomRow.user1_id}`).emit('receive_message', savedMsg);
+                    }
+                    if (roomRow?.user2_id) {
+                        io.to(`user_${roomRow.user2_id}`).emit('receive_message', savedMsg);
+                    }
+                }
+            }
+            if (typeof callback === 'function') {
+                callback({ ok: true, id: savedMsg?.id ?? null, clientId: clientId || null });
+            }
         } catch (err) {
             console.error('Socket error:', err.message);
             socket.emit('error', { message: 'Failed to send message' });
+            if (typeof callback === 'function') {
+                callback({ ok: false, error: 'Failed to send message' });
+            }
         }
     });
 
@@ -1059,18 +1192,83 @@ app.get('/api/blocks/:userId', async (req, res) => {
 app.get('/api/messages/:roomId', async (req, res) => {
     try {
         const { roomId } = req.params;
+        const { sinceId } = req.query;
+        const { userId } = req.query;
         const roomValidation = validateRoomId(roomId);
         if (!roomValidation.valid) {
             res.status(400).json({ error: roomValidation.error });
             return;
         }
         const sanitizedRoomId = roomValidation.sanitized;
-        const { rows } = await db.query(`
-            SELECT m.*, u.avatar 
-            FROM messages m 
-            LEFT JOIN users u ON m.user_id = u.id 
-            WHERE m.room_id = ? 
-            ORDER BY m.id ASC`, [sanitizedRoomId]);
+        let targetUserId = null;
+        if (userId !== undefined) {
+            const userIdValidation = validateUserId(userId);
+            if (!userIdValidation.valid) {
+                res.status(400).json({ error: userIdValidation.error });
+                return;
+            }
+            targetUserId = userIdValidation.sanitized;
+        }
+        const EPHEMERAL_TTL_MS = 2 * 60 * 1000;
+        const isEphemeralSystemText = (row) => {
+            if (!row || row.user !== 'System' || !row.text) return false;
+            return row.text.includes('sent you a chat request') ||
+                row.text.includes('accepted your chat request');
+        };
+        const parseTimestampMs = (ts) => {
+            if (!ts) return null;
+            if (typeof ts === 'number') return ts;
+            const raw = String(ts);
+            const normalized = raw.includes(' ') && !raw.includes('T')
+                ? raw.replace(' ', 'T')
+                : raw;
+            const parsed = Date.parse(normalized);
+            return Number.isNaN(parsed) ? null : parsed;
+        };
+        const isExpiredEphemeral = (row) => {
+            if (!isEphemeralSystemText(row)) return false;
+            const ms = parseTimestampMs(row.timestamp);
+            if (!ms) return true;
+            return Date.now() - ms > EPHEMERAL_TTL_MS;
+        };
+
+        let rows = [];
+        const parsedSinceId = parseInt(sinceId, 10);
+        if (Number.isInteger(parsedSinceId) && parsedSinceId > 0) {
+            const result = await db.query(`
+                SELECT m.*, u.avatar 
+                FROM messages m 
+                LEFT JOIN users u ON m.user_id = u.id 
+                WHERE m.room_id = ? AND m.id > ?
+                ${targetUserId ? 'AND (m.target_user_id IS NULL OR m.target_user_id = ?)' : ''}
+                ORDER BY m.id ASC`, targetUserId
+                    ? [sanitizedRoomId, parsedSinceId, targetUserId]
+                    : [sanitizedRoomId, parsedSinceId]);
+            rows = result.rows;
+        } else {
+            const result = await db.query(`
+                SELECT m.*, u.avatar 
+                FROM messages m 
+                LEFT JOIN users u ON m.user_id = u.id 
+                WHERE m.room_id = ?
+                ${targetUserId ? 'AND (m.target_user_id IS NULL OR m.target_user_id = ?)' : ''}
+                ORDER BY m.id ASC`, targetUserId
+                    ? [sanitizedRoomId, targetUserId]
+                    : [sanitizedRoomId]);
+            rows = result.rows;
+        }
+        rows = rows.filter(row => !isExpiredEphemeral(row));
+
+        try {
+            const { rows: countRows } = await db.query(
+                'SELECT COUNT(*) as total FROM messages WHERE room_id = ?',
+                [sanitizedRoomId]
+            );
+            const total = countRows[0]?.total ?? rows.length;
+            console.log(`[messages] room=${sanitizedRoomId} userId=${targetUserId ?? 'all'} sinceId=${parsedSinceId || 0} returned=${rows.length} total=${total}`);
+        } catch (e) {
+            console.log(`[messages] room=${sanitizedRoomId} sinceId=${parsedSinceId || 0} returned=${rows.length}`);
+        }
 
             // Transform snake_case to camelCase for frontend
         const messages = rows.map(row => ({
@@ -1080,9 +1278,251 @@ app.get('/api/messages/:roomId', async (req, res) => {
             text: row.text,
             time: row.time,
                 avatar: row.avatar,
-                targetUserId: row.target_user_id ?? null
+                targetUserId: row.target_user_id ?? null,
+                timestamp: row.timestamp,
+                clientId: row.client_id || null
         }));
         res.json(messages);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/messages', async (req, res) => {
+    try {
+        const { roomId, userId, user, text, time, clientId } = req.body;
+        const textValidation = validateMessageText(text);
+        if (!textValidation.valid) {
+            res.status(400).json({ error: textValidation.error });
+            return;
+        }
+        const userIdValidation = validateUserId(userId);
+        if (!userIdValidation.valid) {
+            res.status(400).json({ error: userIdValidation.error });
+            return;
+        }
+        const roomValidation = validateRoomId(roomId);
+        if (!roomValidation.valid) {
+            res.status(400).json({ error: roomValidation.error });
+            return;
+        }
+
+        const sanitizedText = textValidation.sanitized;
+        const sanitizedUserId = userIdValidation.sanitized;
+        const sanitizedRoomId = roomValidation.sanitized;
+        const sanitizedUser = user ? user.toString().trim().substring(0, 30) : 'Anonymous';
+
+        if (clientId) {
+            const { rows: existingRows } = await db.query(`
+                SELECT m.*, u.avatar
+                FROM messages m
+                LEFT JOIN users u ON m.user_id = u.id
+                WHERE m.room_id = ? AND m.client_id = ?
+                LIMIT 1
+            `, [sanitizedRoomId, clientId]);
+            if (existingRows.length > 0) {
+                const row = existingRows[0];
+                const existingMsg = {
+                    id: row.id,
+                    roomId: row.room_id,
+                    userId: row.user_id,
+                    user: row.user,
+                    text: row.text,
+                    time: row.time,
+                    avatar: row.avatar || null,
+                    clientId: row.client_id || null,
+                    timestamp: row.timestamp
+                };
+                io.to(sanitizedRoomId).emit('receive_message', existingMsg);
+                if (sanitizedRoomId.startsWith('private_')) {
+                    const privateRoomId = parseInt(sanitizedRoomId.replace('private_', ''), 10);
+                    if (!Number.isNaN(privateRoomId)) {
+                        const { rows: roomRows } = await db.query(
+                            'SELECT user1_id, user2_id FROM private_chat_rooms WHERE id = ?',
+                            [privateRoomId]
+                        );
+                        const roomRow = roomRows[0];
+                        if (roomRow?.user1_id) {
+                            io.to(`user_${roomRow.user1_id}`).emit('receive_message', existingMsg);
+                        }
+                        if (roomRow?.user2_id) {
+                            io.to(`user_${roomRow.user2_id}`).emit('receive_message', existingMsg);
+                        }
+                    }
+                }
+                res.json(existingMsg);
+                return;
+            }
+        }
+
+        await db.query(
+            'INSERT INTO messages (room_id, user_id, "user", text, time, client_id) VALUES (?, ?, ?, ?, ?, ?)',
+            [sanitizedRoomId, sanitizedUserId, sanitizedUser, sanitizedText, time, clientId || null]
+        );
+
+        let savedRow = null;
+        if (clientId) {
+            const { rows: byClientRows } = await db.query(`
+                SELECT m.*, u.avatar
+                FROM messages m
+                LEFT JOIN users u ON m.user_id = u.id
+                WHERE m.room_id = ? AND m.client_id = ?
+                ORDER BY m.id DESC
+                LIMIT 1
+            `, [sanitizedRoomId, clientId]);
+            savedRow = byClientRows[0] || null;
+        }
+        if (!savedRow) {
+            const { rows: lastRows } = await db.query(`
+                SELECT m.*, u.avatar
+                FROM messages m
+                LEFT JOIN users u ON m.user_id = u.id
+                WHERE m.room_id = ?
+                ORDER BY m.id DESC
+                LIMIT 1
+            `, [sanitizedRoomId]);
+            savedRow = lastRows[0] || null;
+        }
+
+        const savedMsg = {
+            id: savedRow?.id,
+            roomId: sanitizedRoomId,
+            userId: sanitizedUserId,
+            user: sanitizedUser,
+            text: sanitizedText,
+            time,
+            avatar: savedRow?.avatar || null,
+            clientId: clientId || null,
+            timestamp: savedRow?.timestamp || null
+        };
+
+        io.to(sanitizedRoomId).emit('receive_message', savedMsg);
+        if (sanitizedRoomId.startsWith('private_')) {
+            const privateRoomId = parseInt(sanitizedRoomId.replace('private_', ''), 10);
+            if (!Number.isNaN(privateRoomId)) {
+                const { rows: roomRows } = await db.query(
+                    'SELECT user1_id, user2_id FROM private_chat_rooms WHERE id = ?',
+                    [privateRoomId]
+                );
+                const roomRow = roomRows[0];
+                if (roomRow?.user1_id) {
+                    io.to(`user_${roomRow.user1_id}`).emit('receive_message', savedMsg);
+                }
+                if (roomRow?.user2_id) {
+                    io.to(`user_${roomRow.user2_id}`).emit('receive_message', savedMsg);
+                }
+                if (roomRow?.user1_id && savedMsg.id) {
+                    await db.query('INSERT OR IGNORE INTO message_deliveries (message_id, user_id) VALUES (?, ?)', [savedMsg.id, roomRow.user1_id]);
+                }
+                if (roomRow?.user2_id && savedMsg.id) {
+                    await db.query('INSERT OR IGNORE INTO message_deliveries (message_id, user_id) VALUES (?, ?)', [savedMsg.id, roomRow.user2_id]);
+                }
+                if (savedMsg.id) {
+                    await db.query('UPDATE message_deliveries SET delivered_at = CURRENT_TIMESTAMP WHERE message_id = ? AND user_id = ?', [savedMsg.id, sanitizedUserId]);
+                }
+            }
+        }
+
+        res.json(savedMsg);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/messages/undelivered/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const userIdValidation = validateUserId(userId);
+        if (!userIdValidation.valid) {
+            res.status(400).json({ error: userIdValidation.error });
+            return;
+        }
+        const sanitizedUserId = userIdValidation.sanitized;
+        const EPHEMERAL_TTL_MS = 2 * 60 * 1000;
+        const isEphemeralSystemText = (row) => {
+            if (!row || row.user !== 'System' || !row.text) return false;
+            return row.text.includes('sent you a chat request') ||
+                row.text.includes('accepted your chat request');
+        };
+        const parseTimestampMs = (ts) => {
+            if (!ts) return null;
+            if (typeof ts === 'number') return ts;
+            const raw = String(ts);
+            const normalized = raw.includes(' ') && !raw.includes('T')
+                ? raw.replace(' ', 'T')
+                : raw;
+            const parsed = Date.parse(normalized);
+            return Number.isNaN(parsed) ? null : parsed;
+        };
+        const isExpiredEphemeral = (row) => {
+            if (!isEphemeralSystemText(row)) return false;
+            const ms = parseTimestampMs(row.timestamp);
+            if (!ms) return true;
+            return Date.now() - ms > EPHEMERAL_TTL_MS;
+        };
+
+        const { rows } = await db.query(`
+            SELECT m.*, u.avatar
+            FROM message_deliveries md
+            JOIN messages m ON md.message_id = m.id
+            LEFT JOIN users u ON m.user_id = u.id
+            WHERE md.user_id = ? AND md.delivered_at IS NULL AND m.room_id LIKE 'private_%'
+            ORDER BY m.id ASC
+        `, [sanitizedUserId]);
+
+        const expiredIds = rows.filter(isExpiredEphemeral).map(row => row.id);
+        if (expiredIds.length > 0) {
+            const placeholders = expiredIds.map(() => '?').join(',');
+            await db.query(
+                `UPDATE message_deliveries SET delivered_at = CURRENT_TIMESTAMP
+                 WHERE user_id = ? AND message_id IN (${placeholders})`,
+                [sanitizedUserId, ...expiredIds]
+            );
+        }
+
+        const filteredRows = rows.filter(row => !isExpiredEphemeral(row));
+        const messages = filteredRows.map(row => ({
+            id: row.id,
+            userId: row.user_id,
+            user: row.user,
+            text: row.text,
+            time: row.time,
+            avatar: row.avatar,
+            targetUserId: row.target_user_id ?? null,
+            timestamp: row.timestamp,
+            clientId: row.client_id || null,
+            roomId: row.room_id
+        }));
+        res.json(messages);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/messages/ack', async (req, res) => {
+    try {
+        const { userId, messageIds } = req.body;
+        const userIdValidation = validateUserId(userId);
+        if (!userIdValidation.valid) {
+            res.status(400).json({ error: userIdValidation.error });
+            return;
+        }
+        if (!Array.isArray(messageIds) || messageIds.length === 0) {
+            res.status(400).json({ error: 'messageIds must be a non-empty array' });
+            return;
+        }
+        const sanitizedUserId = userIdValidation.sanitized;
+        const ids = messageIds.map(id => parseInt(id, 10)).filter(n => Number.isInteger(n) && n > 0);
+        if (ids.length === 0) {
+            res.status(400).json({ error: 'No valid message IDs' });
+            return;
+        }
+        const placeholders = ids.map(() => '?').join(',');
+        await db.query(
+            `UPDATE message_deliveries SET delivered_at = CURRENT_TIMESTAMP WHERE user_id = ? AND message_id IN (${placeholders})`,
+            [sanitizedUserId, ...ids]
+        );
+        res.json({ success: true, count: ids.length });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1270,20 +1710,23 @@ app.post('/api/private-chat/request', async (req, res) => {
         `, [sanitizedRequesterId, sanitizedRequestedId, sanitizedRequestedId, sanitizedRequesterId]);
 
         let requestId = null;
+        let shouldNotify = true;
         if (existingRequests.length > 0) {
             const existing = existingRequests[0];
             if (existing.status === 'pending') {
-                res.status(400).json({ error: 'Chat request already pending' });
-                return;
+                requestId = existing.id;
+                shouldNotify = false;
             }
             // Reset existing request to pending (reuse same row due to unique constraint)
-            await db.query(`
-                UPDATE private_chat_requests
-                SET requester_id = ?, requested_id = ?, status = 'pending',
-                    created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `, [sanitizedRequesterId, sanitizedRequestedId, existing.id]);
-            requestId = existing.id;
+            if (existing.status !== 'pending') {
+                await db.query(`
+                    UPDATE private_chat_requests
+                    SET requester_id = ?, requested_id = ?, status = 'pending',
+                        created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `, [sanitizedRequesterId, sanitizedRequestedId, existing.id]);
+                requestId = existing.id;
+            }
         } else {
             // Create new chat request
             const result = await db.query(`
@@ -1314,7 +1757,7 @@ app.post('/api/private-chat/request', async (req, res) => {
         const { rows: requesterRows } = await db.query('SELECT username, avatar FROM users WHERE id = ?', [sanitizedRequesterId]);
         
         // Send real-time notification to requested user
-        if (requesterRows.length > 0) {
+        if (shouldNotify && requesterRows.length > 0) {
             const notification = {
                 type: 'private_chat_request',
                 requestId: requestId,
@@ -1333,33 +1776,41 @@ app.post('/api/private-chat/request', async (req, res) => {
         }
 
         // Add system message to private room so recipient sees request in history
-        if (roomId && requesterRows.length > 0) {
+        if (shouldNotify && roomId && requesterRows.length > 0) {
             const roomKey = `private_${roomId}`;
             const systemText = `${requesterRows[0].username} sent you a chat request.`;
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            const { rows: lastMsgRows } = await db.query(
-                'SELECT text, target_user_id FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT 1',
-                [roomKey]
+            const { rows: existingSystemRows } = await db.query(
+                `SELECT id, timestamp FROM messages
+                 WHERE room_id = ? AND "user" = 'System' AND text = ? AND target_user_id = ?
+                 ORDER BY id DESC LIMIT 1`,
+                [roomKey, systemText, sanitizedRequestedId]
             );
-            const lastText = lastMsgRows[0]?.text;
-            const lastTargetUserId = lastMsgRows[0]?.target_user_id;
+            const existingSystem = existingSystemRows[0];
 
-            if (lastText !== systemText || lastTargetUserId !== sanitizedRequestedId) {
-                await db.query(
+            if (!existingSystem) {
+                const insertResult = await db.query(
                     'INSERT INTO messages (room_id, user_id, "user", text, time, target_user_id) VALUES (?, ?, ?, ?, ?, ?)',
                     [roomKey, null, 'System', systemText, time, sanitizedRequestedId]
                 );
+                const systemMessageId = insertResult.rows[0]?.id;
+                let messageTimestamp = null;
+                if (systemMessageId) {
+                    const { rows: tsRows } = await db.query('SELECT timestamp FROM messages WHERE id = ?', [systemMessageId]);
+                    messageTimestamp = tsRows[0]?.timestamp || null;
+                }
 
                 io.to(roomKey).emit('receive_message', {
-                    id: Date.now(),
+                    id: systemMessageId || Date.now(),
                     roomId: roomKey,
                     userId: null,
                     user: 'System',
                     text: systemText,
                     time,
                     avatar: null,
-                    targetUserId: sanitizedRequestedId
+                    targetUserId: sanitizedRequestedId,
+                    timestamp: messageTimestamp
                 });
             }
         }
@@ -1535,29 +1986,36 @@ app.post('/api/private-chat/respond', async (req, res) => {
                 const requestedName = requestedRows[0]?.username || 'User';
                 const systemText = `${requestedName} accepted your chat request.`;
                 const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                const { rows: lastMsgRows } = await db.query(
-                    'SELECT text, target_user_id FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT 1',
-                    [roomKey]
+                const { rows: existingSystemRows } = await db.query(
+                    `SELECT id, timestamp FROM messages
+                     WHERE room_id = ? AND "user" = 'System' AND text = ? AND target_user_id = ?
+                     ORDER BY id DESC LIMIT 1`,
+                    [roomKey, systemText, request.requester_id]
                 );
-                const lastText = lastMsgRows[0]?.text;
-                const lastTargetUserId = lastMsgRows[0]?.target_user_id;
+                const existingSystem = existingSystemRows[0];
 
-                if (lastText !== systemText || lastTargetUserId !== request.requester_id) {
-                    await db.query(
+                if (!existingSystem) {
+                    const insertResult = await db.query(
                         'INSERT INTO messages (room_id, user_id, "user", text, time, target_user_id) VALUES (?, ?, ?, ?, ?, ?)',
                         [roomKey, null, 'System', systemText, time, request.requester_id]
                     );
+                    const systemMessageId = insertResult.rows[0]?.id;
+                    let messageTimestamp = null;
+                    if (systemMessageId) {
+                        const { rows: tsRows } = await db.query('SELECT timestamp FROM messages WHERE id = ?', [systemMessageId]);
+                        messageTimestamp = tsRows[0]?.timestamp || null;
+                    }
 
                     io.to(roomKey).emit('receive_message', {
-                        id: Date.now(),
+                        id: systemMessageId || Date.now(),
                         roomId: roomKey,
                         userId: null,
                         user: 'System',
                         text: systemText,
                         time,
                         avatar: null,
-                        targetUserId: request.requester_id
+                        targetUserId: request.requester_id,
+                        timestamp: messageTimestamp
                     });
                 }
             }

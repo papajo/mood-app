@@ -91,7 +91,7 @@ JWT_EXPIRES_IN=7d                # Token expiration (default: 7 days)
 
 ```bash
 # Signup
-curl -X POST http://localhost:3001/api/auth/signup \
+curl -X POST http://localhost:3002/api/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -100,7 +100,7 @@ curl -X POST http://localhost:3001/api/auth/signup \
   }'
 
 # Login
-curl -X POST http://localhost:3001/api/auth/login \
+curl -X POST http://localhost:3002/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -108,7 +108,7 @@ curl -X POST http://localhost:3001/api/auth/login \
   }'
 
 # Verify Token
-curl -X GET http://localhost:3001/api/auth/verify \
+curl -X GET http://localhost:3002/api/auth/verify \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
 

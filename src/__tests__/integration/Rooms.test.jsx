@@ -5,8 +5,8 @@ import { UserProvider } from '../../contexts/UserContext';
 
 // Mock API
 vi.mock('../../config/api', () => ({
-    API_URL: 'http://localhost:3001',
-    SOCKET_URL: 'http://localhost:3001'
+    API_URL: 'http://localhost:3002',
+    SOCKET_URL: 'http://localhost:3002'
 }));
 
 global.fetch = vi.fn();

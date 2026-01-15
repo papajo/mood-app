@@ -28,26 +28,14 @@ const TestComponent = () => {
 describe('UserContext', () => {
   beforeEach(() => {
     localStorage.clear();
-    fetch.mockClear();
+    fetch.mockReset();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('should create new user when none exists in localStorage', async () => {
-    // Mock successful user creation
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        id: 1,
-        username: 'User1234',
-        avatar: 'https://i.pravatar.cc/150?u=User1234',
-        status: 'Just joined!',
-        currentMoodId: null
-      })
-    });
-
+  it('should not auto-create a guest user when none exists in localStorage', async () => {
     render(
       <UserProvider>
         <TestComponent />
@@ -57,29 +45,15 @@ describe('UserContext', () => {
     // Should show loading initially
     expect(screen.getByTestId('loading')).toHaveTextContent('true');
 
-    // Wait for user creation
+    // Wait for initialization
     await waitFor(() => {
       expect(screen.getByTestId('loading')).toHaveTextContent('false');
     });
 
-    // Check user data
-    expect(screen.getByTestId('user-id')).toHaveTextContent('1');
-    expect(screen.getByTestId('username')).toHaveTextContent('User1234');
+    expect(screen.getByTestId('user-id')).toHaveTextContent('no-user');
+    expect(screen.getByTestId('username')).toHaveTextContent('no-username');
     expect(screen.getByTestId('error')).toHaveTextContent('no-error');
-
-    // Check localStorage was set
-    expect(localStorage.getItem('userId')).toBe('1');
-    expect(localStorage.getItem('username')).toBe('User1234');
-
-    // Check API call was made
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/users'),
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: expect.stringContaining('User')
-      })
-    );
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('should retrieve existing user from localStorage and API', async () => {
@@ -118,27 +92,16 @@ describe('UserContext', () => {
     );
   });
 
-  it('should create new user when localStorage user not found in API', async () => {
+  it('should leave user unset when localStorage user is not found in API', async () => {
     // Set existing user in localStorage
     localStorage.setItem('userId', '999');
     localStorage.setItem('username', 'OldUser');
 
     // Mock failed user retrieval (404)
-    fetch
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 404
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          id: 456,
-          username: 'NewUser123',
-          avatar: 'https://i.pravatar.cc/150?u=NewUser123',
-          status: 'Just joined!',
-          currentMoodId: null
-        })
-      });
+    fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404
+    });
 
     render(
       <UserProvider>
@@ -150,16 +113,14 @@ describe('UserContext', () => {
       expect(screen.getByTestId('loading')).toHaveTextContent('false');
     });
 
-    // Should create new user
-    expect(screen.getByTestId('user-id')).toHaveTextContent('456');
-    expect(screen.getByTestId('username')).toHaveTextContent('NewUser123');
-
-    // Should update localStorage
-    expect(localStorage.getItem('userId')).toBe('456');
-    expect(localStorage.getItem('username')).toBe('NewUser123');
+    expect(screen.getByTestId('user-id')).toHaveTextContent('no-user');
+    expect(screen.getByTestId('username')).toHaveTextContent('no-username');
   });
 
   it('should handle API errors gracefully', async () => {
+    localStorage.setItem('userId', '123');
+    localStorage.setItem('username', 'TestUser');
+
     // Mock API error
     fetch.mockRejectedValue(new Error('Network error'));
 
@@ -205,7 +166,7 @@ describe('UserContext', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+      expect(screen.getByTestId('user-id')).toHaveTextContent('123');
     });
 
     // Click update status button
@@ -253,7 +214,7 @@ describe('UserContext', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+      expect(screen.getByTestId('user-id')).toHaveTextContent('123');
     });
 
     // Click update status button

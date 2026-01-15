@@ -38,7 +38,7 @@ run_test_suite() {
 
 # Check if server is running
 echo "Checking prerequisites..."
-if ! curl -s http://localhost:3001/health > /dev/null 2>&1; then
+if ! curl -s http://localhost:3002/health > /dev/null 2>&1; then
     echo -e "${YELLOW}⚠ Server not running. Starting server...${NC}"
     cd server && npm start > /dev/null 2>&1 &
     SERVER_PID=$!

@@ -1,7 +1,7 @@
 # 🎯 Heart & Private Chat Testing Guide
 
 ## ⚡ Quick Start
-1. **Open app**: `http://localhost:5173`
+1. **Open app**: `http://localhost:5174`
 2. **Two tabs needed** for testing
 3. **Use user switcher**: `switchUser(1)` and `switchUser(2)`
 
@@ -62,7 +62,7 @@ window.socket?.id         // Should show socket ID
 #### 4. Manual API Testing:
 ```bash
 # Test heart notification directly:
-curl -X POST http://localhost:3001/api/heart \
+curl -X POST http://localhost:3002/api/heart \
   -H "Content-Type: application/json" \
   -d '{"senderId": 1, "receiverId": 2}'
 
@@ -70,7 +70,7 @@ curl -X POST http://localhost:3001/api/heart \
 {"success":true,"message":"Heart sent successfully"}
 
 # Test chat request:
-curl -X POST http://localhost:3001/api/private-chat/request \
+curl -X POST http://localhost:3002/api/private-chat/request \
   -H "Content-Type: application/json" \
   -d '{"requesterId": 1, "requestedId": 2}'
 ```

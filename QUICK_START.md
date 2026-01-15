@@ -7,11 +7,11 @@ The servers should now be running! Here's how to access and test the app:
 ### Access the Application
 
 1. **Frontend (React App)**
-   - Open your browser and navigate to: **http://localhost:5173**
+   - Open your browser and navigate to: **http://localhost:5174**
    - This is the main MoodMingle application
 
 2. **Backend API**
-   - API server is running on: **http://localhost:3001**
+   - API server is running on: **http://localhost:3002**
    - You can test API endpoints directly
 
 ### What to Test
@@ -54,8 +54,8 @@ The servers should now be running! Here's how to access and test the app:
 To test the full experience:
 
 1. **Open Multiple Browser Windows/Tabs**
-   - Window 1: http://localhost:5173
-   - Window 2: http://localhost:5173 (incognito or different browser)
+   - Window 1: http://localhost:5174
+   - Window 2: http://localhost:5174 (incognito or different browser)
    - Each will create a different user
 
 2. **Test Real-time Features**
@@ -74,10 +74,10 @@ You can also test the API directly:
 
 ```bash
 # Get all users matching a mood
-curl http://localhost:3001/api/users/match/happy
+curl http://localhost:3002/api/users/match/happy
 
 # Create a user
-curl -X POST http://localhost:3001/api/users \
+curl -X POST http://localhost:3002/api/users \
   -H "Content-Type: application/json" \
   -d '{"username": "TestUser"}'
 ```
@@ -95,7 +95,7 @@ npm run dev
 ```
 
 **If you see CORS errors:**
-- Make sure backend is running on port 3001
+- Make sure backend is running on port 3002
 - Check that FRONTEND_URL in server/.env matches your frontend URL
 
 **If database errors:**
@@ -107,8 +107,8 @@ npm run dev
 Press `Ctrl+C` in the terminal where the servers are running, or:
 ```bash
 # Kill processes on ports
-lsof -ti:3001 | xargs kill -9
-lsof -ti:5173 | xargs kill -9
+lsof -ti:3002 | xargs kill -9
+lsof -ti:5174 | xargs kill -9
 ```
 
 ---

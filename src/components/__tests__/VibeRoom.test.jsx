@@ -21,8 +21,8 @@ vi.mock('../../contexts/UserContext', () => ({
 
 // Mock API
 vi.mock('../../config/api', () => ({
-  API_URL: 'http://localhost:3001',
-  SOCKET_URL: 'http://localhost:3001'
+  API_URL: 'http://localhost:3002',
+  SOCKET_URL: 'http://localhost:3002'
 }));
 
 global.fetch = vi.fn();
@@ -60,12 +60,25 @@ describe('VibeRoom', () => {
     const sendBtn = screen.getByRole('button', { name: '' }); // Send icon button usually has no aria-label text if not specified, but we can find by type submit
     fireEvent.click(sendBtn);
 
-    expect(mockSocket.emit).toHaveBeenCalledWith('send_message', expect.objectContaining({
-      roomId: 'happy',
-      text: 'Hello World',
-      userId: 123,
-      user: 'TestUser'
-    }));
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/messages'),
+        expect.objectContaining({
+          method: 'POST'
+        })
+      );
+    });
+
+    expect(mockSocket.emit).toHaveBeenCalledWith(
+      'send_message',
+      expect.objectContaining({
+        roomId: 'happy',
+        text: 'Hello World',
+        userId: 123,
+        user: 'TestUser'
+      }),
+      expect.any(Function)
+    );
   });
 
   it('emits typing indicators', async () => {

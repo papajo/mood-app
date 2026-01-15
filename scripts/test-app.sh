@@ -13,7 +13,7 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-API_URL="http://localhost:3001"
+API_URL="http://localhost:3002"
 PASSED=0
 FAILED=0
 

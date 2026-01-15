@@ -7,8 +7,8 @@ import { UserProvider, useUser } from '../../contexts/UserContext';
 
 // Mock API
 vi.mock('../../config/api', () => ({
-    API_URL: 'http://localhost:3001',
-    SOCKET_URL: 'http://localhost:3001'
+    API_URL: 'http://localhost:3002',
+    SOCKET_URL: 'http://localhost:3002'
 }));
 
 global.fetch = vi.fn();
@@ -293,7 +293,7 @@ describe('Notification Integration Tests', () => {
 
             await waitFor(() => {
                 expect(fetch).toHaveBeenCalledWith(
-                    'http://localhost:3001/api/private-chat/respond',
+                    'http://localhost:3002/api/private-chat/respond',
                     expect.objectContaining({
                         method: 'POST',
                         body: JSON.stringify({
@@ -352,7 +352,7 @@ describe('Notification Integration Tests', () => {
 
             await waitFor(() => {
                 expect(fetch).toHaveBeenCalledWith(
-                    'http://localhost:3001/api/private-chat/respond',
+                    'http://localhost:3002/api/private-chat/respond',
                     expect.objectContaining({
                         method: 'POST',
                         body: JSON.stringify({

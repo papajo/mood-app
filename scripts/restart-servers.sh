@@ -29,20 +29,20 @@ sleep 3
 echo ""
 echo "Checking server status..."
 
-if lsof -i :3001 > /dev/null 2>&1; then
-    echo "✅ Backend running on port 3001"
+if lsof -i :3002 > /dev/null 2>&1; then
+    echo "✅ Backend running on port 3002"
 else
     echo "❌ Backend failed to start"
     echo "   Check: tail -f /tmp/moodmingle-server.log"
 fi
 
-if lsof -i :5173 > /dev/null 2>&1; then
-    echo "✅ Frontend running on port 5173"
+if lsof -i :5174 > /dev/null 2>&1; then
+    echo "✅ Frontend running on port 5174"
     echo ""
     echo "📱 Access from iPhone:"
     IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1)
     if [ -n "$IP" ]; then
-        echo "   http://$IP:5173"
+        echo "   http://$IP:5174"
     fi
 else
     echo "❌ Frontend failed to start"
