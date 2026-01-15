@@ -312,12 +312,30 @@ export const initializeDatabaseTables = async () => {
 
 
 
+// Map user IDs to socket IDs for targeted notifications
+const userSocketMap = new Map(); // userId -> Set of socketIds
+
 // Socket.io Connection
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
     let currentRoom = null;
     let currentUserId = null;
+
+    // Register user ID when they identify themselves
+    socket.on('register_user', (data) => {
+        const userId = typeof data === 'object' ? data.userId : data;
+        if (userId) {
+            if (!userSocketMap.has(userId)) {
+                userSocketMap.set(userId, new Set());
+            }
+            userSocketMap.get(userId).add(socket.id);
+            currentUserId = userId;
+            // Also join a user-specific room for easier targeting
+            socket.join(`user_${userId}`);
+            console.log(`User ${userId} registered with socket ${socket.id}`);
+        }
+    });
 
     socket.on('join_room', (data) => {
         const roomId = typeof data === 'string' ? data : data.roomId;
@@ -329,7 +347,18 @@ io.on('connection', (socket) => {
 
         socket.join(roomId);
         currentRoom = roomId;
-        currentUserId = userId;
+        
+        // Register user ID if provided
+        if (userId) {
+            if (!userSocketMap.has(userId)) {
+                userSocketMap.set(userId, new Set());
+            }
+            userSocketMap.get(userId).add(socket.id);
+            currentUserId = userId;
+            // Join user-specific room
+            socket.join(`user_${userId}`);
+        }
+        
         console.log(`User ${socket.id} (${userId}) joined room: ${roomId} `);
     });
 
@@ -456,7 +485,9 @@ io.on('connection', (socket) => {
                     timestamp: new Date().toISOString()
                 };
                 
-                // Send to specific user
+                // Send to specific user via room
+                io.to(`user_${sanitizedReceiverId}`).emit(`heart_notification_${sanitizedReceiverId}`, notification);
+                // Also emit globally as fallback
                 io.emit(`heart_notification_${sanitizedReceiverId}`, notification);
                 
                 // Send confirmation to sender
@@ -472,7 +503,19 @@ io.on('connection', (socket) => {
         if (currentRoom) {
             socket.to(currentRoom).emit('user_left', { userId: currentUserId });
         }
-        console.log('User disconnected:', socket.id);
+        
+        // Remove socket from user mapping
+        if (currentUserId) {
+            const userSockets = userSocketMap.get(currentUserId);
+            if (userSockets) {
+                userSockets.delete(socket.id);
+                if (userSockets.size === 0) {
+                    userSocketMap.delete(currentUserId);
+                }
+            }
+        }
+        
+        console.log('User disconnected:', socket.id, 'userId:', currentUserId);
     });
 });
 
@@ -1231,6 +1274,9 @@ app.post('/api/private-chat/request', async (req, res) => {
             };
             
             console.log(`Emitting chat request notification to user ${sanitizedRequestedId}:`, notification);
+            // Send to user-specific room (more reliable than io.emit)
+            io.to(`user_${sanitizedRequestedId}`).emit(`private_chat_request_${sanitizedRequestedId}`, notification);
+            // Also emit globally as fallback
             io.emit(`private_chat_request_${sanitizedRequestedId}`, notification);
         }
 
@@ -1300,6 +1346,9 @@ app.post('/api/private-chat/respond', async (req, res) => {
                 message: 'Private chat started! 💬'
             };
             
+            io.to(`user_${request.requester_id}`).emit(`private_chat_accepted_${request.requester_id}`, notification);
+            io.to(`user_${request.requested_id}`).emit(`private_chat_accepted_${request.requested_id}`, notification);
+            // Also emit globally as fallback
             io.emit(`private_chat_accepted_${request.requester_id}`, notification);
             io.emit(`private_chat_accepted_${request.requested_id}`, notification);
         } else {
@@ -1309,6 +1358,8 @@ app.post('/api/private-chat/respond', async (req, res) => {
                 message: 'Private chat request was declined'
             };
             
+            io.to(`user_${request.requester_id}`).emit(`private_chat_rejected_${request.requester_id}`, notification);
+            // Also emit globally as fallback
             io.emit(`private_chat_rejected_${request.requester_id}`, notification);
         }
 
@@ -1344,11 +1395,35 @@ app.get('/api/private-chat/requests/:userId', async (req, res) => {
             LIMIT 20
         `, [sanitizedUserId]);
 
-        const requests = rows.map(row => ({
-            id: row.id,
-            requesterId: row.requester_id,
-            requesterUsername: row.requester_username,
-            requesterAvatar: row.requester_avatar,
+        console.log(`Fetched ${rows.length} pending chat requests for user ${sanitizedUserId}`);
+
+        const requests = rows.map(row => {
+            // Convert SQLite timestamp to ISO string
+            let createdAt = new Date().toISOString();
+            if (row.created_at) {
+                // SQLite timestamps can be in format "YYYY-MM-DD HH:MM:SS"
+                const dateStr = row.created_at.toString();
+                // Try parsing as-is first (if already ISO)
+                const parsed = new Date(dateStr);
+                if (!isNaN(parsed.getTime())) {
+                    createdAt = parsed.toISOString();
+                } else {
+                    // Try SQLite format: "YYYY-MM-DD HH:MM:SS"
+                    const sqliteFormat = dateStr.replace(' ', 'T');
+                    const parsed2 = new Date(sqliteFormat);
+                    if (!isNaN(parsed2.getTime())) {
+                        createdAt = parsed2.toISOString();
+                    }
+                }
+            }
+            return {
+                id: row.id,
+                requesterId: row.requester_id,
+                requesterUsername: row.requester_username,
+                requesterAvatar: row.requester_avatar,
+                createdAt: createdAt
+            };
+        });
             createdAt: row.created_at
         }));
 

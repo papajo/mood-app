@@ -13,7 +13,8 @@ import { findMoodById } from './constants/moods';
 import { UserProvider, useUser } from './contexts/UserContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import NotificationButton from './components/NotificationButton';
-import { API_URL } from './config/api';
+import { API_URL, SOCKET_URL } from './config/api';
+import io from 'socket.io-client';
 
 function AppContent() {
     const { user, loading: userLoading, isAuthenticated, login } = useUser();
@@ -23,6 +24,48 @@ function AppContent() {
     const [moodLoading, setMoodLoading] = useState(true);
     const [showProfile, setShowProfile] = useState(false);
     const [showSignup, setShowSignup] = useState(false);
+
+    // Initialize global socket connection for real-time notifications
+    useEffect(() => {
+        if (!isAuthenticated || !user) return;
+
+        // Initialize socket if not already done
+        if (!window.socket) {
+            console.log('Initializing global socket connection...');
+            window.socket = io(SOCKET_URL, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5
+            });
+
+            window.socket.on('connect', () => {
+                console.log('Global socket connected:', window.socket.id);
+                // Register user ID with socket server
+                if (user && user.id) {
+                    window.socket.emit('register_user', { userId: user.id });
+                    console.log('Registered user ID with socket:', user.id);
+                }
+            });
+
+            window.socket.on('disconnect', () => {
+                console.log('Global socket disconnected');
+            });
+
+            window.socket.on('connect_error', (error) => {
+                console.error('Socket connection error:', error);
+            });
+        } else if (window.socket.connected && user && user.id) {
+            // If socket already exists and is connected, register user ID
+            window.socket.emit('register_user', { userId: user.id });
+            console.log('Registered user ID with existing socket:', user.id);
+        }
+
+        return () => {
+            // Don't disconnect on unmount - keep connection alive
+            // Socket will be reused by other components
+        };
+    }, [isAuthenticated, user]);
 
     // Fetch initial mood from server and notifications
     useEffect(() => {

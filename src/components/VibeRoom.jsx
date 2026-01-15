@@ -21,14 +21,20 @@ const VibeRoom = ({ currentMood }) => {
     useEffect(() => {
         if (!currentMood || !user) return;
 
-        // Initialize socket if not already done
-        if (!socketRef.current) {
+        // Use global socket if available, otherwise create new one
+        if (window.socket) {
+            socketRef.current = window.socket;
+            console.log('Using global socket for VibeRoom');
+        } else if (!socketRef.current) {
             socketRef.current = io(SOCKET_URL, {
                 transports: ['websocket', 'polling'],
                 reconnection: true,
                 reconnectionDelay: 1000,
                 reconnectionAttempts: 5
             });
+            // Also set to window.socket for other components
+            window.socket = socketRef.current;
+            console.log('Created new socket for VibeRoom and set to window.socket');
         }
 
         const socket = socketRef.current;

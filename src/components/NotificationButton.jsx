@@ -12,13 +12,41 @@ const NotificationButton = () => {
     const socketListenersRef = useRef({});
 
     useEffect(() => {
-        if (!user || !window.socket) return;
+        if (!user) return;
+        
+        // Wait for socket to be available
+        if (!window.socket) {
+            console.log('Socket not available yet, waiting...');
+            const checkSocket = setInterval(() => {
+                if (window.socket && window.socket.connected) {
+                    clearInterval(checkSocket);
+                    // Force re-run by updating a state or dependency
+                }
+            }, 100);
+            
+            return () => clearInterval(checkSocket);
+        }
+        
+        if (!window.socket.connected) {
+            console.log('Socket not connected, waiting for connection...');
+            const handleConnect = () => {
+                window.socket.off('connect', handleConnect);
+            };
+            window.socket.on('connect', handleConnect);
+            return () => {
+                if (window.socket) {
+                    window.socket.off('connect', handleConnect);
+                }
+            };
+        }
 
         const userId = user.id;
         
         // Clear previous listeners
         Object.values(socketListenersRef.current).forEach(({ event, handler }) => {
-            window.socket.off(event, handler);
+            if (window.socket) {
+                window.socket.off(event, handler);
+            }
         });
         socketListenersRef.current = {};
 
@@ -29,11 +57,17 @@ const NotificationButton = () => {
         };
 
         const handleChatRequest = async (data) => {
-            console.log('Chat request received:', data);
+            console.log('Chat request received via socket:', data);
+            console.log('Current user ID:', user?.id);
             addNotification(data);
-            // Refetch chat requests to ensure UI is up to date
+            // Refetch chat requests after a short delay to ensure server has processed the request
             if (user?.id) {
-                fetchChatRequests(user.id);
+                setTimeout(() => {
+                    console.log('Refetching chat requests for user:', user.id);
+                    fetchChatRequests(user.id);
+                }, 500);
+            } else {
+                console.warn('Cannot refetch chat requests - user ID not available');
             }
         };
 
@@ -71,9 +105,11 @@ const NotificationButton = () => {
         });
 
         return () => {
-            Object.values(socketListenersRef.current).forEach(({ event, handler }) => {
-                window.socket.off(event, handler);
-            });
+            if (window.socket) {
+                Object.values(socketListenersRef.current).forEach(({ event, handler }) => {
+                    window.socket.off(event, handler);
+                });
+            }
         };
     }, [user, addNotification, fetchChatRequests]);
 

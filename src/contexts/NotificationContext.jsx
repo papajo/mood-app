@@ -60,15 +60,35 @@ export const NotificationProvider = ({ children }) => {
                 console.log('Fetched chat requests:', data);
                 // Only show recent requests (last 24 hours)
                 const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-                const recentRequests = data.filter(r => 
-                    new Date(r.createdAt).getTime() > oneDayAgo
-                );
-                setChatRequests(recentRequests);
-                
-                // Recalculate unread count with current notifications
-                setNotifications(prev => {
-                    recalculateUnreadCount(prev, recentRequests);
-                    return prev;
+                const recentRequests = data.filter(r => {
+                    if (!r.createdAt) return false;
+                    const requestTime = new Date(r.createdAt).getTime();
+                    const isValid = !isNaN(requestTime);
+                    if (!isValid) {
+                        console.warn('Invalid createdAt for request:', r);
+                    }
+                    return isValid && requestTime > oneDayAgo;
+                });
+                console.log('Filtered recent chat requests:', recentRequests.length, 'out of', data.length);
+                // Merge with existing requests to avoid losing socket notifications
+                setChatRequests(prev => {
+                    const merged = [...recentRequests];
+                    // Add any requests from prev that aren't in recentRequests (from socket notifications)
+                    prev.forEach(req => {
+                        if (!merged.some(r => r.id === req.id)) {
+                            merged.push(req);
+                        }
+                    });
+                    // Sort by createdAt descending
+                    merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    
+                    // Recalculate unread count with merged requests
+                    setNotifications(currentHearts => {
+                        recalculateUnreadCount(currentHearts, merged);
+                        return currentHearts;
+                    });
+                    
+                    return merged;
                 });
             } else {
                 console.error('Failed to fetch chat requests:', response.status, response.statusText);
@@ -128,11 +148,11 @@ export const NotificationProvider = ({ children }) => {
                     return updated;
                 });
                 
-                // Show success feedback
+                // Show success feedback and navigate to chat
                 if (result.roomId) {
                     console.log('Private chat room ready:', result.roomId);
-                    // Could show a toast notification here
-                    alert('Chat request accepted! Private chat room created.');
+                    alert(`Chat request accepted! Private chat room #${result.roomId} created. You can now start chatting.`);
+                    // TODO: Navigate to private chat room when private chat UI is implemented
                 } else {
                     alert('Chat request accepted!');
                 }
@@ -195,15 +215,30 @@ export const NotificationProvider = ({ children }) => {
             setChatRequests(prev => {
                 // Check if request already exists to avoid duplicates
                 const exists = prev.some(req => req.id === chatRequest.id);
-                if (exists) return prev;
-                return [chatRequest, ...prev];
+                if (exists) {
+                    console.log('Chat request already exists, skipping duplicate');
+                    return prev;
+                }
+                console.log('Adding new chat request to state:', chatRequest);
+                const updated = [chatRequest, ...prev];
+                // Update unread count based on new state
+                setNotifications(currentHearts => {
+                    recalculateUnreadCount(currentHearts, updated);
+                    return currentHearts;
+                });
+                return updated;
             });
-            setUnreadCount(prev => prev + 1);
-            // Also refetch to ensure we have the latest data
-            if (notification.requesterId) {
-                // We don't have userId here, but we can trigger a refetch from the component
-                console.log('Chat request notification received, should refetch requests');
+        } else if (notification.type === 'private_chat_accepted') {
+            // Handle chat acceptance notification
+            console.log('Chat accepted notification received:', notification);
+            if (notification.roomId) {
+                // Show notification that chat room was created
+                alert(`Private chat room #${notification.roomId} created! You can now start chatting.`);
+                // TODO: Navigate to private chat room when UI is implemented
             }
+        } else if (notification.type === 'private_chat_rejected') {
+            // Handle chat rejection notification
+            console.log('Chat rejected notification received:', notification);
         }
     }, []);
 
