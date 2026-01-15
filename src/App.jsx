@@ -16,11 +16,10 @@ import NotificationButton from './components/NotificationButton';
 import { API_URL, SOCKET_URL } from './config/api';
 import io from 'socket.io-client';
 
-function AppContent() {
+function AppContent({ currentPrivateRoom, setCurrentPrivateRoom, activeTab, setActiveTab }) {
     const { user, loading: userLoading, isAuthenticated, login } = useUser();
     const { fetchHeartNotifications, fetchChatRequests } = useNotifications();
     const [currentMood, setCurrentMood] = useState(null);
-    const [activeTab, setActiveTab] = useState('feed');
     const [moodLoading, setMoodLoading] = useState(true);
     const [showProfile, setShowProfile] = useState(false);
     const [showSignup, setShowSignup] = useState(false);
@@ -219,7 +218,7 @@ function AppContent() {
             case 'feed':
                 return <MatchFeed currentMood={currentMood} />;
             case 'chat':
-                return <VibeRoom currentMood={currentMood} />;
+                return <VibeRoom currentMood={currentMood} privateRoom={currentPrivateRoom} onPrivateRoomClose={() => setCurrentPrivateRoom(null)} />;
             case 'boost':
                 return <MoodBooster currentMood={currentMood} />;
             case 'journal':
@@ -271,10 +270,41 @@ function AppContent() {
 function App() {
     return (
         <UserProvider>
-            <NotificationProvider>
-                <AppContent />
-            </NotificationProvider>
+            <AppContentWrapper />
         </UserProvider>
+    );
+}
+
+// Wrapper to pass navigation function to NotificationContext
+function AppContentWrapper() {
+    const [currentPrivateRoom, setCurrentPrivateRoom] = useState(null);
+    const [activeTab, setActiveTab] = useState('feed');
+    
+    // Navigation callback for private rooms
+    const navigateToPrivateRoom = (roomId, otherUserId) => {
+        setCurrentPrivateRoom({ id: roomId, otherUserId });
+        setActiveTab('chat');
+    };
+
+    useEffect(() => {
+        // Expose navigation globally for fallback
+        window.openPrivateRoom = navigateToPrivateRoom;
+        return () => {
+            if (window.openPrivateRoom === navigateToPrivateRoom) {
+                delete window.openPrivateRoom;
+            }
+        };
+    }, []);
+    
+    return (
+        <NotificationProvider navigateToPrivateRoom={navigateToPrivateRoom}>
+            <AppContent 
+                currentPrivateRoom={currentPrivateRoom}
+                setCurrentPrivateRoom={setCurrentPrivateRoom}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+            />
+        </NotificationProvider>
     );
 }
 

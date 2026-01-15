@@ -105,29 +105,52 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                                                         : 'bg-white/5'
                                                 }`}
                                             >
-                                                <div className="relative">
-                                                    <img
-                                                        src={notification.senderAvatar}
-                                                        alt={notification.senderUsername}
-                                                        className="w-10 h-10 rounded-full"
-                                                    />
-                                                    <Heart 
-                                                        size={12} 
-                                                        className="absolute -top-1 -right-1 text-pink-500 bg-white rounded-full p-0.5"
-                                                        fill="currentColor"
-                                                    />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-white text-sm font-medium">
-                                                        {notification.senderUsername}
-                                                    </p>
-                                                    <p className="text-gray-400 text-xs">
-                                                        sent you a heart ❤️
-                                                    </p>
-                                                    <p className="text-gray-500 text-xs mt-1">
-                                                        {new Date(notification.createdAt).toLocaleTimeString()}
-                                                    </p>
-                                                </div>
+                                                {notification.type === 'heart' ? (
+                                                    <>
+                                                        <div className="relative">
+                                                            <img
+                                                                src={notification.senderAvatar}
+                                                                alt={notification.senderUsername}
+                                                                className="w-10 h-10 rounded-full"
+                                                            />
+                                                            <Heart 
+                                                                size={12} 
+                                                                className="absolute -top-1 -right-1 text-pink-500 bg-white rounded-full p-0.5"
+                                                                fill="currentColor"
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-white text-sm font-medium">
+                                                                {notification.senderUsername}
+                                                            </p>
+                                                            <p className="text-gray-400 text-xs">
+                                                                sent you a heart ❤️
+                                                            </p>
+                                                            <p className="text-gray-500 text-xs mt-1">
+                                                                {new Date(notification.createdAt).toLocaleTimeString()}
+                                                            </p>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="relative">
+                                                            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                                                                <MessageCircle size={16} className="text-primary" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-white text-sm font-medium">
+                                                                Chat Update
+                                                            </p>
+                                                            <p className="text-gray-400 text-xs">
+                                                                {notification.message || 'Private chat accepted'}
+                                                            </p>
+                                                            <p className="text-gray-500 text-xs mt-1">
+                                                                {new Date(notification.createdAt).toLocaleTimeString()}
+                                                            </p>
+                                                        </div>
+                                                    </>
+                                                )}
                                                 {!notification.isRead && (
                                                     <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
                                                 )}

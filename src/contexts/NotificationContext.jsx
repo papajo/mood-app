@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../config/api';
+import { useUser } from './UserContext';
 
 const NotificationContext = createContext();
 
@@ -11,7 +12,8 @@ export const useNotifications = () => {
     return context;
 };
 
-export const NotificationProvider = ({ children }) => {
+export const NotificationProvider = ({ children, navigateToPrivateRoom }) => {
+    const { user } = useUser();
     const [notifications, setNotifications] = useState([]);
     const [chatRequests, setChatRequests] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -20,8 +22,10 @@ export const NotificationProvider = ({ children }) => {
     const recalculateUnreadCount = useCallback((hearts, requests) => {
         const unreadHearts = hearts.filter(n => !n.isRead).length;
         const unreadRequests = requests.length;
-        setUnreadCount(unreadHearts + unreadRequests);
-    }, []);
+        const total = unreadHearts + unreadRequests;
+        console.log('Recalculating unread count:', { unreadHearts, unreadRequests, total, heartsCount: hearts.length, requestsCount: requests.length });
+        setUnreadCount(total);
+    }, [navigateToPrivateRoom, user]);
 
     // Fetch heart notifications
     const fetchHeartNotifications = useCallback(async (userId) => {
@@ -49,6 +53,14 @@ export const NotificationProvider = ({ children }) => {
         }
     }, [recalculateUnreadCount]);
 
+    const openPrivateRoom = useCallback((roomId, otherUserId) => {
+        if (navigateToPrivateRoom) {
+            navigateToPrivateRoom(roomId, otherUserId);
+        } else {
+            console.log('navigateToPrivateRoom not available', { roomId, otherUserId });
+        }
+    }, [navigateToPrivateRoom]);
+
     // Fetch chat requests
     const fetchChatRequests = useCallback(async (userId) => {
         if (!userId) return;
@@ -74,17 +86,25 @@ export const NotificationProvider = ({ children }) => {
                 setChatRequests(prev => {
                     const merged = [...recentRequests];
                     // Add any requests from prev that aren't in recentRequests (from socket notifications)
+                    let addedFromPrev = 0;
                     prev.forEach(req => {
                         if (!merged.some(r => r.id === req.id)) {
                             merged.push(req);
+                            addedFromPrev++;
                         }
                     });
                     // Sort by createdAt descending
                     merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
                     
-                    // Recalculate unread count with merged requests
+                    console.log('Merged chat requests:', merged.length, 'total (', recentRequests.length, 'from API,', addedFromPrev, 'added from state)');
+                    
+                    // Recalculate unread count with merged requests - use functional update to get latest hearts
                     setNotifications(currentHearts => {
-                        recalculateUnreadCount(currentHearts, merged);
+                        const unreadHearts = currentHearts.filter(n => !n.isRead).length;
+                        const unreadRequests = merged.length;
+                        const total = unreadHearts + unreadRequests;
+                        console.log('Recalculating unread count after fetch:', { unreadHearts, unreadRequests, total, mergedCount: merged.length });
+                        setUnreadCount(total);
                         return currentHearts;
                     });
                     
@@ -123,15 +143,26 @@ export const NotificationProvider = ({ children }) => {
 
     // Accept chat request
     const acceptChatRequest = useCallback(async (requestId, userId) => {
-        console.log('Accepting chat request:', { requestId, userId });
+        // Ensure requestId and userId are numbers
+        const numRequestId = typeof requestId === 'string' ? parseInt(requestId, 10) : requestId;
+        const numUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+        
+        console.log('Accepting chat request:', { 
+            requestId: numRequestId, 
+            userId: numUserId,
+            originalRequestId: requestId,
+            originalUserId: userId,
+            requestIdType: typeof requestId,
+            userIdType: typeof userId
+        });
         
         try {
             const response = await fetch(`${API_URL}/api/private-chat/respond`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    requestId, 
-                    userId, 
+                    requestId: numRequestId, 
+                    userId: numUserId, 
                     response: 'accept' 
                 })
             });
@@ -139,6 +170,10 @@ export const NotificationProvider = ({ children }) => {
             if (response.ok) {
                 const result = await response.json();
                 console.log('Chat request accepted:', result);
+                
+                // Find the requester ID from the chat request
+                const request = chatRequests.find(req => req.id === requestId);
+                const otherUserId = request?.requesterId;
                 
                 // Remove from pending requests and update unread count
                 setChatRequests(prev => {
@@ -148,11 +183,13 @@ export const NotificationProvider = ({ children }) => {
                     return updated;
                 });
                 
-                // Show success feedback and navigate to chat
-                if (result.roomId) {
+                // Navigate to private chat room
+                if (result.roomId && navigateToPrivateRoom) {
+                    console.log('Navigating to private chat room:', result.roomId);
+                    navigateToPrivateRoom(result.roomId, otherUserId);
+                } else if (result.roomId) {
                     console.log('Private chat room ready:', result.roomId);
-                    alert(`Chat request accepted! Private chat room #${result.roomId} created. You can now start chatting.`);
-                    // TODO: Navigate to private chat room when private chat UI is implemented
+                    alert(`Chat request accepted! Private chat room #${result.roomId} created. Switch to the Chat tab to start chatting.`);
                 } else {
                     alert('Chat request accepted!');
                 }
@@ -164,7 +201,7 @@ export const NotificationProvider = ({ children }) => {
             console.error('Failed to accept chat request:', err);
             alert(`Error accepting chat request: ${err.message || 'Unknown error'}`);
         }
-    }, []);
+    }, [chatRequests, navigateToPrivateRoom]);
 
     // Reject chat request
     const rejectChatRequest = useCallback(async (requestId, userId) => {
@@ -221,20 +258,42 @@ export const NotificationProvider = ({ children }) => {
                 }
                 console.log('Adding new chat request to state:', chatRequest);
                 const updated = [chatRequest, ...prev];
-                // Update unread count based on new state
+                
+                // Update unread count immediately and recalculate with current hearts
                 setNotifications(currentHearts => {
-                    recalculateUnreadCount(currentHearts, updated);
+                    const unreadHearts = currentHearts.filter(n => !n.isRead).length;
+                    const unreadRequests = updated.length;
+                    const total = unreadHearts + unreadRequests;
+                    console.log('Updating unread count from socket notification:', { unreadHearts, unreadRequests, total });
+                    setUnreadCount(total);
                     return currentHearts;
                 });
+                
                 return updated;
             });
         } else if (notification.type === 'private_chat_accepted') {
             // Handle chat acceptance notification
             console.log('Chat accepted notification received:', notification);
+            const createdAt = notification.createdAt || new Date().toISOString();
+            setNotifications(prev => [
+                {
+                    id: `chat_accepted_${notification.roomId}_${createdAt}`,
+                    type: 'system',
+                    message: notification.message || 'Private chat accepted',
+                    createdAt
+                },
+                ...prev
+            ]);
             if (notification.roomId) {
-                // Show notification that chat room was created
-                alert(`Private chat room #${notification.roomId} created! You can now start chatting.`);
-                // TODO: Navigate to private chat room when UI is implemented
+                const currentUserId = user?.id;
+                const otherUserId = currentUserId
+                    ? (notification.requesterId === currentUserId ? notification.requestedId : notification.requesterId)
+                    : null;
+                if (navigateToPrivateRoom) {
+                    navigateToPrivateRoom(notification.roomId, otherUserId);
+                } else {
+                    alert(`Private chat room #${notification.roomId} created! You can now start chatting.`);
+                }
             }
         } else if (notification.type === 'private_chat_rejected') {
             // Handle chat rejection notification
@@ -290,6 +349,7 @@ export const NotificationProvider = ({ children }) => {
                 acceptChatRequest,
                 rejectChatRequest,
                 addNotification,
+                openPrivateRoom,
                 clearAllNotifications
             }}
         >

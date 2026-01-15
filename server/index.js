@@ -33,6 +33,22 @@ const validateMoodId = (moodId) => {
     return { valid: true, sanitized: moodId.toLowerCase() };
 };
 
+const validateRoomId = (roomId) => {
+    if (!roomId || typeof roomId !== 'string') {
+        return { valid: false, error: 'Room ID is required and must be a string' };
+    }
+    // Allow mood rooms
+    const moodValidation = validateMoodId(roomId);
+    if (moodValidation.valid) {
+        return moodValidation;
+    }
+    // Allow private rooms: private_<id>
+    if (/^private_\d+$/.test(roomId)) {
+        return { valid: true, sanitized: roomId };
+    }
+    return { valid: false, error: 'Invalid room ID' };
+};
+
 const validateUserId = (userId) => {
     console.log('Validating user ID:', userId, 'type:', typeof userId);
     const id = parseInt(userId);
@@ -256,6 +272,19 @@ export const initializeDatabaseTables = async () => {
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
+        // Migration: add target_user_id for system messages scoped to a user
+        try {
+            const msgTableInfo = await db.query(`PRAGMA table_info(messages)`);
+            const hasTargetUserId = msgTableInfo.rows.some(col => col.name === 'target_user_id');
+            if (!hasTargetUserId) {
+                await db.query(`ALTER TABLE messages ADD COLUMN target_user_id INTEGER`);
+            }
+        } catch (err) {
+            if (!err.message.includes('duplicate column name') && !err.message.includes('already exists')) {
+                console.warn('Migration note (messages.target_user_id):', err.message);
+            }
+        }
+
         await db.query(`CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             reporter_id INTEGER,
@@ -391,8 +420,8 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            // Validate room ID (mood)
-            const roomValidation = validateMoodId(roomId);
+            // Validate room ID (mood or private room)
+            const roomValidation = validateRoomId(roomId);
             if (!roomValidation.valid) {
                 socket.emit('error', { message: roomValidation.error });
                 return;
@@ -1030,21 +1059,28 @@ app.get('/api/blocks/:userId', async (req, res) => {
 app.get('/api/messages/:roomId', async (req, res) => {
     try {
         const { roomId } = req.params;
+        const roomValidation = validateRoomId(roomId);
+        if (!roomValidation.valid) {
+            res.status(400).json({ error: roomValidation.error });
+            return;
+        }
+        const sanitizedRoomId = roomValidation.sanitized;
         const { rows } = await db.query(`
             SELECT m.*, u.avatar 
             FROM messages m 
             LEFT JOIN users u ON m.user_id = u.id 
             WHERE m.room_id = ? 
-            ORDER BY m.id ASC`, [roomId]);
+            ORDER BY m.id ASC`, [sanitizedRoomId]);
 
-        // Transform snake_case to camelCase for frontend
+            // Transform snake_case to camelCase for frontend
         const messages = rows.map(row => ({
             id: row.id,
             userId: row.user_id,
             user: row.user,
             text: row.text,
             time: row.time,
-            avatar: row.avatar
+                avatar: row.avatar,
+                targetUserId: row.target_user_id ?? null
         }));
         res.json(messages);
     } catch (err) {
@@ -1233,31 +1269,47 @@ app.post('/api/private-chat/request', async (req, res) => {
             WHERE (requester_id = ? AND requested_id = ?) OR (requester_id = ? AND requested_id = ?)
         `, [sanitizedRequesterId, sanitizedRequestedId, sanitizedRequestedId, sanitizedRequesterId]);
 
+        let requestId = null;
         if (existingRequests.length > 0) {
             const existing = existingRequests[0];
             if (existing.status === 'pending') {
                 res.status(400).json({ error: 'Chat request already pending' });
                 return;
-            } else if (existing.status === 'accepted') {
-                // Return existing private room
-                const { rows: roomRows } = await db.query(`
-                    SELECT id FROM private_chat_rooms 
-                    WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)
-                    AND is_active = TRUE
-                `, [sanitizedRequesterId, sanitizedRequestedId, sanitizedRequestedId, sanitizedRequesterId]);
-                
-                if (roomRows.length > 0) {
-                    res.json({ success: true, roomId: roomRows[0].id, status: 'existing' });
-                    return;
-                }
             }
+            // Reset existing request to pending (reuse same row due to unique constraint)
+            await db.query(`
+                UPDATE private_chat_requests
+                SET requester_id = ?, requested_id = ?, status = 'pending',
+                    created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `, [sanitizedRequesterId, sanitizedRequestedId, existing.id]);
+            requestId = existing.id;
+        } else {
+            // Create new chat request
+            const result = await db.query(`
+                INSERT INTO private_chat_requests (requester_id, requested_id) 
+                VALUES (?, ?)
+            `, [sanitizedRequesterId, sanitizedRequestedId]);
+            requestId = result.rows[0]?.id;
         }
 
-        // Create new chat request
-        const result = await db.query(`
-            INSERT INTO private_chat_requests (requester_id, requested_id) 
-            VALUES (?, ?)
-        `, [sanitizedRequesterId, sanitizedRequestedId]);
+        // Ensure private room exists so sender can enter immediately
+        let roomId = null;
+        const { rows: existingRooms } = await db.query(`
+            SELECT id FROM private_chat_rooms
+            WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))
+            AND is_active = TRUE
+        `, [sanitizedRequesterId, sanitizedRequestedId, sanitizedRequestedId, sanitizedRequesterId]);
+
+        if (existingRooms.length > 0) {
+            roomId = existingRooms[0].id;
+        } else {
+            const roomResult = await db.query(`
+                INSERT INTO private_chat_rooms (room_name, user1_id, user2_id) 
+                VALUES (?, ?, ?)
+            `, [`private_${sanitizedRequesterId}_${sanitizedRequestedId}`, sanitizedRequesterId, sanitizedRequestedId]);
+            roomId = roomResult.rows[0]?.id;
+        }
 
         const { rows: requesterRows } = await db.query('SELECT username, avatar FROM users WHERE id = ?', [sanitizedRequesterId]);
         
@@ -1265,7 +1317,7 @@ app.post('/api/private-chat/request', async (req, res) => {
         if (requesterRows.length > 0) {
             const notification = {
                 type: 'private_chat_request',
-                requestId: result.rows[0]?.id,
+                requestId: requestId,
                 requesterId: sanitizedRequesterId,
                 requesterUsername: requesterRows[0].username,
                 requesterAvatar: requesterRows[0].avatar || null,
@@ -1280,7 +1332,75 @@ app.post('/api/private-chat/request', async (req, res) => {
             io.emit(`private_chat_request_${sanitizedRequestedId}`, notification);
         }
 
-        res.json({ success: true, requestId: result.rows[0]?.id, status: 'pending' });
+        // Add system message to private room so recipient sees request in history
+        if (roomId && requesterRows.length > 0) {
+            const roomKey = `private_${roomId}`;
+            const systemText = `${requesterRows[0].username} sent you a chat request.`;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const { rows: lastMsgRows } = await db.query(
+                'SELECT text, target_user_id FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT 1',
+                [roomKey]
+            );
+            const lastText = lastMsgRows[0]?.text;
+            const lastTargetUserId = lastMsgRows[0]?.target_user_id;
+
+            if (lastText !== systemText || lastTargetUserId !== sanitizedRequestedId) {
+                await db.query(
+                    'INSERT INTO messages (room_id, user_id, "user", text, time, target_user_id) VALUES (?, ?, ?, ?, ?, ?)',
+                    [roomKey, null, 'System', systemText, time, sanitizedRequestedId]
+                );
+
+                io.to(roomKey).emit('receive_message', {
+                    id: Date.now(),
+                    roomId: roomKey,
+                    userId: null,
+                    user: 'System',
+                    text: systemText,
+                    time,
+                    avatar: null,
+                    targetUserId: sanitizedRequestedId
+                });
+            }
+        }
+
+        res.json({ success: true, requestId: requestId, roomId: roomId, status: 'pending' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get or create a private room for two users
+app.get('/api/private-chat/room', async (req, res) => {
+    try {
+        const { user1Id, user2Id } = req.query;
+        const user1Validation = validateUserId(user1Id);
+        const user2Validation = validateUserId(user2Id);
+        if (!user1Validation.valid || !user2Validation.valid) {
+            res.status(400).json({ error: 'Invalid user IDs' });
+            return;
+        }
+        const user1 = user1Validation.sanitized;
+        const user2 = user2Validation.sanitized;
+
+        const { rows: existingRooms } = await db.query(`
+            SELECT id FROM private_chat_rooms
+            WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))
+            AND is_active = TRUE
+        `, [user1, user2, user2, user1]);
+
+        let roomId = null;
+        if (existingRooms.length > 0) {
+            roomId = existingRooms[0].id;
+        } else {
+            const roomResult = await db.query(`
+                INSERT INTO private_chat_rooms (room_name, user1_id, user2_id) 
+                VALUES (?, ?, ?)
+            `, [`private_${user1}_${user2}`, user1, user2]);
+            roomId = roomResult.rows[0]?.id;
+        }
+
+        res.json({ success: true, roomId });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1291,7 +1411,7 @@ app.post('/api/private-chat/respond', async (req, res) => {
     try {
         const { requestId, userId, response } = req.body; // response: 'accept' or 'reject'
         
-        console.log('Chat respond request received:', { requestId, userId, response });
+        console.log('Chat respond request received:', { requestId, userId, response, types: { requestId: typeof requestId, userId: typeof userId } });
 
         if (!['accept', 'reject'].includes(response)) {
             res.status(400).json({ error: 'Invalid response' });
@@ -1305,44 +1425,98 @@ app.post('/api/private-chat/respond', async (req, res) => {
         }
 
         const sanitizedUserId = userIdValidation.sanitized;
+        
+        // Validate and sanitize requestId
+        const requestIdValidation = validateUserId(requestId);
+        if (!requestIdValidation.valid) {
+            res.status(400).json({ error: 'Invalid request ID' });
+            return;
+        }
+        const sanitizedRequestId = requestIdValidation.sanitized;
 
         // First check if request exists and get its data
+        console.log('Checking for request:', { requestId: sanitizedRequestId, userId: sanitizedUserId });
         const { rows: existingRows } = await db.query(`
-            SELECT requester_id, requested_id FROM private_chat_requests 
+            SELECT requester_id, requested_id, status FROM private_chat_requests 
             WHERE id = ? AND requested_id = ? AND status = 'pending'
-        `, [requestId, sanitizedUserId]);
+        `, [sanitizedRequestId, sanitizedUserId]);
+        
+        console.log('Request lookup result:', { 
+            found: existingRows.length > 0, 
+            rows: existingRows,
+            queryParams: [sanitizedRequestId, sanitizedUserId]
+        });
 
         if (existingRows.length === 0) {
-            console.log('Request not found - requestId or userId mismatch');
-            res.status(404).json({ error: 'Request not found' });
+            // Check if request exists but with different status
+            const { rows: statusRows } = await db.query(`
+                SELECT id, requester_id, requested_id, status FROM private_chat_requests 
+                WHERE id = ? AND requested_id = ?
+            `, [sanitizedRequestId, sanitizedUserId]);
+            
+            if (statusRows.length > 0) {
+                console.log('Request found but wrong status:', statusRows[0]);
+                res.status(400).json({ error: `Request already ${statusRows[0].status}` });
+            } else {
+                // Check if request exists at all
+                const { rows: anyRows } = await db.query(`
+                    SELECT id, requester_id, requested_id, status FROM private_chat_requests 
+                    WHERE id = ?
+                `, [sanitizedRequestId]);
+                
+                if (anyRows.length > 0) {
+                    console.log('Request found but userId mismatch:', { 
+                        request: anyRows[0], 
+                        providedUserId: sanitizedUserId 
+                    });
+                    res.status(403).json({ error: 'Request not found for this user' });
+                } else {
+                    console.log('Request not found at all:', { requestId: sanitizedRequestId });
+                    res.status(404).json({ error: 'Request not found' });
+                }
+            }
             return;
         }
 
         const request = existingRows[0];
 
         // Update request status
-        console.log('Updating request:', { requestId, userId, response });
+        console.log('Updating request:', { requestId: sanitizedRequestId, userId: sanitizedUserId, response });
         
         await db.query(`
             UPDATE private_chat_requests 
             SET status = ?, updated_at = CURRENT_TIMESTAMP 
             WHERE id = ? AND requested_id = ?
-        `, [response === 'accept' ? 'accepted' : 'rejected', requestId, sanitizedUserId]);
+        `, [response === 'accept' ? 'accepted' : 'rejected', sanitizedRequestId, sanitizedUserId]);
         let roomId = null;
 
         if (response === 'accept') {
-            // Create private chat room
-            const roomResult = await db.query(`
-                INSERT INTO private_chat_rooms (room_name, user1_id, user2_id) 
-                VALUES (?, ?, ?)
-            `, [`private_${request.requester_id}_${request.requested_id}`, request.requester_id, request.requested_id]);
-            
-            roomId = roomResult.rows[0]?.id;
+            // Check for existing active private room
+            const { rows: existingRooms } = await db.query(`
+                SELECT id FROM private_chat_rooms
+                WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))
+                AND is_active = TRUE
+            `, [request.requester_id, request.requested_id, request.requested_id, request.requester_id]);
+
+            if (existingRooms.length > 0) {
+                roomId = existingRooms[0].id;
+            } else {
+                // Create private chat room
+                const roomResult = await db.query(`
+                    INSERT INTO private_chat_rooms (room_name, user1_id, user2_id) 
+                    VALUES (?, ?, ?)
+                `, [`private_${request.requester_id}_${request.requested_id}`, request.requester_id, request.requested_id]);
+                
+                roomId = roomResult.rows[0]?.id;
+            }
 
             // Notify both users
             const notification = {
                 type: 'private_chat_accepted',
                 roomId: roomId,
+                requesterId: request.requester_id,
+                requestedId: request.requested_id,
+                createdAt: new Date().toISOString(),
                 message: 'Private chat started! 💬'
             };
             
@@ -1351,6 +1525,42 @@ app.post('/api/private-chat/respond', async (req, res) => {
             // Also emit globally as fallback
             io.emit(`private_chat_accepted_${request.requester_id}`, notification);
             io.emit(`private_chat_accepted_${request.requested_id}`, notification);
+
+            // Add system message to the private room
+            if (roomId) {
+                const roomKey = `private_${roomId}`;
+                const { rows: requesterRows } = await db.query('SELECT username FROM users WHERE id = ?', [request.requester_id]);
+                const { rows: requestedRows } = await db.query('SELECT username FROM users WHERE id = ?', [request.requested_id]);
+                const requesterName = requesterRows[0]?.username || 'User';
+                const requestedName = requestedRows[0]?.username || 'User';
+                const systemText = `${requestedName} accepted your chat request.`;
+                const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                const { rows: lastMsgRows } = await db.query(
+                    'SELECT text, target_user_id FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT 1',
+                    [roomKey]
+                );
+                const lastText = lastMsgRows[0]?.text;
+                const lastTargetUserId = lastMsgRows[0]?.target_user_id;
+
+                if (lastText !== systemText || lastTargetUserId !== request.requester_id) {
+                    await db.query(
+                        'INSERT INTO messages (room_id, user_id, "user", text, time, target_user_id) VALUES (?, ?, ?, ?, ?, ?)',
+                        [roomKey, null, 'System', systemText, time, request.requester_id]
+                    );
+
+                    io.to(roomKey).emit('receive_message', {
+                        id: Date.now(),
+                        roomId: roomKey,
+                        userId: null,
+                        user: 'System',
+                        text: systemText,
+                        time,
+                        avatar: null,
+                        targetUserId: request.requester_id
+                    });
+                }
+            }
         } else {
             // Notify requester of rejection
             const notification = {
@@ -1424,8 +1634,6 @@ app.get('/api/private-chat/requests/:userId', async (req, res) => {
                 createdAt: createdAt
             };
         });
-            createdAt: row.created_at
-        }));
 
         res.json(requests);
     } catch (err) {

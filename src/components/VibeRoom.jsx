@@ -5,7 +5,7 @@ import io from 'socket.io-client';
 import { useUser } from '../contexts/UserContext';
 import { API_URL, SOCKET_URL } from '../config/api';
 
-const VibeRoom = ({ currentMood }) => {
+const VibeRoom = ({ currentMood, privateRoom, onPrivateRoomClose }) => {
     const { user } = useUser();
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
@@ -13,13 +13,25 @@ const VibeRoom = ({ currentMood }) => {
     const [error, setError] = useState(null);
     const [typingUsers, setTypingUsers] = useState(new Set());
     const [activeMenuId, setActiveMenuId] = useState(null); // ID of message with open menu
+    const [otherUser, setOtherUser] = useState(null); // For private rooms
     const typingTimeoutRef = useRef(null);
     const messagesEndRef = useRef(null);
     const socketRef = useRef(null);
 
+    // Determine which room to use (mood room or private room)
+    const roomId = privateRoom ? `private_${privateRoom.id}` : (currentMood ? currentMood.id : null);
+    const isPrivateRoom = !!privateRoom;
+
+    const shouldShowMessage = (msg, currentUserId) => {
+        if (!msg) return false;
+        if (msg.user !== 'System') return true;
+        if (msg.targetUserId == null) return true;
+        return Number(msg.targetUserId) === Number(currentUserId);
+    };
+
     // Initialize socket and join room
     useEffect(() => {
-        if (!currentMood || !user) return;
+        if ((!currentMood && !privateRoom) || !user) return;
 
         // Use global socket if available, otherwise create new one
         if (window.socket) {
@@ -40,11 +52,19 @@ const VibeRoom = ({ currentMood }) => {
         const socket = socketRef.current;
 
         // Join the room with user info
-        socket.emit('join_room', { roomId: currentMood.id, userId: user.id });
+        socket.emit('join_room', { roomId: roomId, userId: user.id });
+
+        // Fetch other user info for private rooms
+        if (isPrivateRoom && privateRoom.otherUserId) {
+            fetch(`${API_URL}/api/users/${privateRoom.otherUserId}`)
+                .then(res => res.json())
+                .then(userData => setOtherUser(userData))
+                .catch(err => console.error('Failed to fetch other user:', err));
+        }
 
         // Fetch history
         setLoading(true);
-        fetch(`${API_URL}/api/messages/${currentMood.id}`)
+        fetch(`${API_URL}/api/messages/${roomId}`)
             .then(res => {
                 if (!res.ok) throw new Error('Failed to fetch messages');
                 return res.json();
@@ -65,7 +85,7 @@ const VibeRoom = ({ currentMood }) => {
                     }
                     return msg;
                 });
-                setMessages(messagesWithAvatars);
+                setMessages(messagesWithAvatars.filter(msg => shouldShowMessage(msg, user.id)));
                 setLoading(false);
             })
             .catch(err => {
@@ -76,6 +96,7 @@ const VibeRoom = ({ currentMood }) => {
 
         // Listen for new messages
         const handleReceiveMessage = (data) => {
+            if (!shouldShowMessage(data, user.id)) return;
             setMessages((prev) => {
                 // Avoid duplicates
                 if (prev.some(m => m.id === data.id)) return prev;
@@ -125,7 +146,7 @@ const VibeRoom = ({ currentMood }) => {
             setTypingUsers(new Set());
             window.socket = null;
         };
-    }, [currentMood, user]);
+    }, [roomId, user, isPrivateRoom, privateRoom]);
 
     const scrollToBottom = () => {
         if (messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === 'function') {
@@ -147,12 +168,12 @@ const VibeRoom = ({ currentMood }) => {
     const handleInputChange = (e) => {
         setInputText(e.target.value);
 
-        if (!socketRef.current || !currentMood || !user) return;
+        if (!socketRef.current || !roomId || !user) return;
 
         // Emit typing indicator
         if (e.target.value.trim()) {
             socketRef.current.emit('typing_start', {
-                roomId: currentMood.id,
+                roomId: roomId,
                 userId: user.id,
                 username: user.username
             });
@@ -166,7 +187,7 @@ const VibeRoom = ({ currentMood }) => {
             typingTimeoutRef.current = setTimeout(() => {
                 if (socketRef.current) {
                     socketRef.current.emit('typing_stop', {
-                        roomId: currentMood.id,
+                        roomId: roomId,
                         userId: user.id
                     });
                 }
@@ -174,7 +195,7 @@ const VibeRoom = ({ currentMood }) => {
         } else {
             if (socketRef.current) {
                 socketRef.current.emit('typing_stop', {
-                    roomId: currentMood.id,
+                    roomId: roomId,
                     userId: user.id
                 });
             }
@@ -232,12 +253,12 @@ const VibeRoom = ({ currentMood }) => {
             clearTimeout(typingTimeoutRef.current);
         }
         socketRef.current.emit('typing_stop', {
-            roomId: currentMood.id,
+            roomId: roomId,
             userId: user.id
         });
 
         const messageData = {
-            roomId: currentMood.id,
+            roomId: roomId,
             userId: user.id,
             user: user.username,
             text: inputText,
@@ -249,7 +270,7 @@ const VibeRoom = ({ currentMood }) => {
         setInputText('');
     };
 
-    if (!currentMood) {
+    if (!currentMood && !privateRoom) {
         return (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400 glass-panel">
                 <p>Select a mood to enter a Vibe Room.</p>
@@ -270,8 +291,25 @@ const VibeRoom = ({ currentMood }) => {
         <div className="flex flex-col h-[65vh] glass-panel p-0 overflow-hidden">
             <div className="p-4 border-b border-white/10 bg-white/5">
                 <h3 className="font-semibold text-white flex items-center gap-2">
-                    <span className="text-xl">{currentMood.emoji}</span>
-                    {currentMood.label} Room
+                    {isPrivateRoom ? (
+                        <>
+                            <span className="text-xl">💬</span>
+                            Private Chat {otherUser && `with ${otherUser.username}`}
+                            {onPrivateRoomClose && (
+                                <button
+                                    onClick={onPrivateRoomClose}
+                                    className="ml-auto text-gray-400 hover:text-white text-sm"
+                                >
+                                    Back to Rooms
+                                </button>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <span className="text-xl">{currentMood.emoji}</span>
+                            {currentMood.label} Room
+                        </>
+                    )}
                     <span className="text-xs font-normal text-gray-400 ml-auto">
                         {messages.length} messages
                     </span>
@@ -382,7 +420,7 @@ const VibeRoom = ({ currentMood }) => {
                     type="text"
                     value={inputText}
                     onChange={handleInputChange}
-                    placeholder={`Message #${currentMood.label}...`}
+                    placeholder={isPrivateRoom ? (otherUser ? `Message ${otherUser.username}...` : 'Type a message...') : `Message #${currentMood.label}...`}
                     className="flex-1 bg-black/20 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-primary/50 transition-colors"
                 />
                 <button

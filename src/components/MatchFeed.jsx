@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, Heart, Loader2, Check } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import { API_URL } from '../config/api';
 
 const MatchFeed = ({ currentMood }) => {
     const { user } = useUser();
+    const { openPrivateRoom } = useNotifications();
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -114,17 +116,38 @@ const MatchFeed = ({ currentMood }) => {
             console.log('Private chat request sent:', result);
             
             if (result.status === 'existing') {
-                // Room already exists, you could navigate to the chat
+                // Room already exists, wait for recipient to accept before opening
                 console.log('Private chat room already exists:', result.roomId);
                 setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'accepted'));
-                alert('Chat room already exists! You can start chatting.');
+                alert('Chat room already exists. Waiting for recipient to accept.');
             } else if (result.success && result.requestId) {
                 // Set request status to pending
                 setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'pending'));
                 console.log(`Private chat request sent to ${targetUser.name}`);
-                // Show success feedback (could use a toast notification)
+                if (result.roomId && openPrivateRoom) {
+                    openPrivateRoom(result.roomId, targetUser.id);
+                } else if (result.roomId && window.openPrivateRoom) {
+                    window.openPrivateRoom(result.roomId, targetUser.id);
+                }
             } else {
                 throw new Error('Unexpected response format');
+            }
+
+            // Fallback: ensure sender enters private room even if roomId missing
+            if ((!result.roomId || !openPrivateRoom) && user?.id && targetUser?.id) {
+                try {
+                    const roomResponse = await fetch(`${API_URL}/api/private-chat/room?user1Id=${user.id}&user2Id=${targetUser.id}`);
+                    if (roomResponse.ok) {
+                        const roomData = await roomResponse.json();
+                        if (roomData.roomId && openPrivateRoom) {
+                            openPrivateRoom(roomData.roomId, targetUser.id);
+                        } else if (roomData.roomId && window.openPrivateRoom) {
+                            window.openPrivateRoom(roomData.roomId, targetUser.id);
+                        }
+                    }
+                } catch (roomErr) {
+                    console.error('Failed to resolve private room for sender:', roomErr);
+                }
             }
         } catch (err) {
             console.error('Failed to request private chat:', err);
@@ -133,6 +156,18 @@ const MatchFeed = ({ currentMood }) => {
             if (errorMessage.includes('already pending')) {
                 setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'pending'));
                 alert('Chat request is already pending');
+                // Ensure sender is in private room even if request already exists
+                try {
+                    const roomResponse = await fetch(`${API_URL}/api/private-chat/room?user1Id=${user.id}&user2Id=${targetUser.id}`);
+                    if (roomResponse.ok) {
+                        const roomData = await roomResponse.json();
+                        if (roomData.roomId && openPrivateRoom) {
+                            openPrivateRoom(roomData.roomId, targetUser.id);
+                        }
+                    }
+                } catch (roomErr) {
+                    console.error('Failed to open existing private room:', roomErr);
+                }
             } else if (errorMessage.includes('already registered') || errorMessage.includes('existing')) {
                 setPrivateChatRequests(prev => new Map(prev).set(targetUser.id, 'accepted'));
                 alert('You already have an active chat with this user');

@@ -6,7 +6,7 @@ import { useUser } from '../contexts/UserContext';
 import NotificationPanel from './NotificationPanel';
 
 const NotificationButton = () => {
-    const { unreadCount, addNotification, fetchChatRequests } = useNotifications();
+    const { unreadCount, addNotification, fetchChatRequests, openPrivateRoom } = useNotifications();
     const { user } = useUser();
     const [isOpen, setIsOpen] = useState(false);
     const socketListenersRef = useRef({});
@@ -59,13 +59,18 @@ const NotificationButton = () => {
         const handleChatRequest = async (data) => {
             console.log('Chat request received via socket:', data);
             console.log('Current user ID:', user?.id);
+            console.log('Notification data:', JSON.stringify(data, null, 2));
+            
+            // Add notification immediately
             addNotification(data);
-            // Refetch chat requests after a short delay to ensure server has processed the request
+            
+            // Refetch chat requests after a delay to ensure server has processed the request
+            // But don't refetch too soon to avoid overwriting the socket notification
             if (user?.id) {
                 setTimeout(() => {
                     console.log('Refetching chat requests for user:', user.id);
                     fetchChatRequests(user.id);
-                }, 500);
+                }, 2000); // Increased delay to ensure server has processed and UI has updated
             } else {
                 console.warn('Cannot refetch chat requests - user ID not available');
             }
@@ -74,6 +79,16 @@ const NotificationButton = () => {
         const handleChatAccepted = (data) => {
             console.log('Chat accepted received:', data);
             addNotification(data);
+            if (data?.roomId && user?.id && openPrivateRoom) {
+                const otherUserId = data.requesterId === user.id ? data.requestedId : data.requesterId;
+                openPrivateRoom(data.roomId, otherUserId);
+            } else {
+                console.log('Chat accepted: unable to open private room', {
+                    roomId: data?.roomId,
+                    userId: user?.id,
+                    hasOpenPrivateRoom: !!openPrivateRoom
+                });
+            }
         };
 
         const handleChatRejected = (data) => {
