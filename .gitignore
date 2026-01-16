@@ -95,3 +95,8 @@ jspm_packages/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Expo
+.expo/
+expo-app/.expo/
+expo-app/node_modules/
